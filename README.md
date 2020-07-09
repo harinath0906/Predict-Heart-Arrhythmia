@@ -1,7 +1,7 @@
 ## **Objective**
 
 The objective is to solve machine learning classification problem (predicting heart arrhythmia) in this case while applying various statistical methods using R.
-The report is an output of R markdown containing all the code and the outcomes with comparision. The report contains the below:
+The report is an output of R markdown containing all the code and the outcomes with comparison. The report contains the below:
 * Exploratory Data Analysis
 * Overview of the problem 
 * Dataset description 
