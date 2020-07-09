@@ -1,0 +1,4199 @@
+---
+title: "Project Report"
+subtitle: "Explore Statistical Methods to Predict Heart Arrhythmia"
+author: "Hari Nath Bingi"
+date: "29/05/2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Overview of the problem**
+
+Diagnosis of a heart arrhythmia involves measuring the heart activity for irregular heart beat using Electrocardiogram (ECG)  and then analysing the recorded data. These parameters coupled with patient information can then be used by doctors to identify arrhythmia and its category.
+
+Some challenges in identifying arrhythmia are:
+
+* Many of the current algorithms are rule based implementation but the cardio log’s classification is different and better.
+* Impossible  for a doctor to identify minute steeps and irregularities due to the high number of parameters (i.e. > 270) involved.
+* **90% of clinical alarms in intensive care units might be false**. This high percentage negatively impacts both patients and clinical staff. The alarm overload might also lead to desensitization and could result in true alarms being ignored.
+
+Hence we aim to create a classification model which will draw conclusions from the cardio log's data as a gold standard and will distinguish between the presence and absence of cardiac arrhythmia and to classify it in one of the 16 groups from ECG data of new patients. This will help in achieving the below.
+
+* Reducing false alarms which in turn helps clinical staff to focus on the attention required areas.
+* Accurate detection to expedite patient's treatment.
+
+## **Dataset**
+
+The data has been captured as a part of study by H. Altay Guvenir and is available in [uci](http://archive.ics.uci.edu/ml/datasets/Arrhythmia) Machine Learning repository.
+
+```{r dataload,echo=TRUE}
+arrhythmia_df = read.csv("arrhythmia.data",header=FALSE,na.strings=c("?"))
+```
+```{r datainspect,echo=FALSE}
+
+colnames(arrhythmia_df) = c("Age","Sex","Height","Weight","QRS_Dur","P-R_Int","Q-T_Int","T_Int","P_Int","QRS","T","P","QRST","J","Heart_Rate","Q_Wave","R_Wave","S_Wave","R'_Wave","S'_Wave","Int_Def","Rag_R_Nom","Diph_R_Nom","Rag_P_Nom","Diph_P_Nom","Rag_T_Nom","Diph_T_Nom", "DII00", "DII01","DII02", "DII03", "DII04","DII05","DII06","DII07","DII08","DII09","DII10","DII11","DIII00","DIII01","DIII02", "DIII03","DIII04","DIII05","DIII06","DIII07","DIII08","DIII09","DIII10","DIII11","AVR00","AVR01","AVR02","AVR03","AVR04","AVR05","AVR06","AVR07","AVR08","AVR09","AVR10","AVR11","AVL00","AVL01","AVL02","AVL03","AVL04","AVL05","AVL06","AVL07","AVL08","AVL09","AVL10","AVL11","AVF00","AVF01","AVF02","AVF03","AVF04","AVF05","AVF06","AVF07","AVF08","AVF09","AVF10","AVF11","V100","V101","V102","V103","V104","V105","V106","V107","V108","V109","V110","V111","V200","V201","V202","V203","V204","V205","V206","V207","V208","V209","V210","V211","V300","V301","V302","V303","V304","V305","V306","V307","V308","V309","V310","V311","V400","V401","V402","V403","V404","V405","V406","V407","V408","V409","V410","V411","V500","V501","V502","V503","V504","V505","V506","V507","V508","V509","V510","V511","V600","V601","V602","V603","V604","V605","V606","V607","V608","V609","V610","V611","JJ_Wave","Amp_Q_Wave","Amp_R_Wave","Amp_S_Wave","R_Prime_Wave","S_Prime_Wave","P_Wave","T_Wave","QRSA","QRSTA","DII170","DII171","DII172","DII173","DII174","DII175","DII176","DII177","DII178","DII179","DIII180","DIII181","DIII182","DIII183","DIII184","DIII185","DIII186","DIII187","DIII188","DIII189","AVR190","AVR191","AVR192","AVR193","AVR194","AVR195","AVR196","AVR197","AVR198","AVR199","AVL200","AVL201","AVL202","AVL203","AVL204","AVL205","AVL206","AVL207","AVL208","AVL209","AVF210","AVF211","AVF212","AVF213","AVF214","AVF215","AVF216","AVF217","AVF218","AVF219","V1220","V1221","V1222","V1223","V1224","V1225","V1226","V1227","V1228","V1229","V2230","V2231","V2232","V2233","V2234","V2235","V2236","V2237","V2238","V2239","V3240","V3241","V3242","V3243","V3244","V3245","V3246","V3247","V3248","V3249","V4250","V4251","V4252","V4253","V4254","V4255","V4256","V4257","V4258","V4259","V5260","V5261","V5262","V5263","V5264","V5265","V5266","V5267","V5268","V5269","V6270","V6271","V6272","V6273","V6274","V6275","V6276","V6277","V6278","V6279","class")
+#summary(arrhythmia_df[,0:10])
+
+#arrhythmia_df <- replace(arrhythmia_df, arrhythmia_df == "?", NA)
+
+#library(psych)
+#psych::describe(arrhythmia_df)
+
+#psych::describeBy(arrhythmia_df, arrhythmia_df$class,mat=TRUE)
+
+#head(arrhythmia_df)
+```
+
+```{r datainspect2, warning=FALSE,include=FALSE}
+dim(arrhythmia_df)
+```
+```{r datainspect22, warning=FALSE,include=FALSE}
+library(skimr)
+summary_df = skim(arrhythmia_df) #We will use for missing values
+```
+
+Our data has 452 observations and 279 features for each observation.
+```{r datainspect21, warning=FALSE, echo=FALSE}
+categorical_columns = c("Sex","Rag_R_Nom", "Diph_R_Nom", "Rag_P_Nom", "Diph_P_Nom", "Rag_T_Nom")
+for (eachcol in colnames(arrhythmia_df[,5:279]))
+{
+  if (length(unique(arrhythmia_df[,eachcol])) < 10 )
+    
+  {
+    categorical_columns = c(categorical_columns,eachcol)
+    
+  }
+
+}
+categorical_columns = unique(categorical_columns)
+
+library(knitr)
+library(kableExtra)
+print_df = data.frame(
+  c(
+    length(categorical_columns),
+    279 - length(categorical_columns)
+  ),
+  c("Categorical", "Numeric"),
+  c(
+    "Sex, Rag_R_Nom, Diph_R_Nom, Rag_P_Nom, Diph_P_Nom, Rag_T_Nom",
+    "Age, Height, Weight, QRS_Dur"
+  )
+)
+colnames(print_df) = c("No. of Features", "Type", "Example Features")
+print_df %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+
+```  
+
+
+```{r label distribution, warning=FALSE, message=FALSE, fig.width=6, fig.height=2.6,echo=FALSE}
+library(ggplot2)
+ggplot(data = arrhythmia_df, aes(x = class)) +
+  geom_histogram(
+    data = subset(arrhythmia_df, class == 1),
+    fill = "forestgreen",
+    alpha = 0.8
+  ) +
+  geom_histogram(
+    data = subset(arrhythmia_df, class != 1),
+    fill = "firebrick",
+    alpha = 0.8
+  ) +
+  ggtitle("Frequency of labels") +
+  xlab("Class") + ylab("Count") +
+  geom_text(
+    stat = 'count',
+    mapping = aes(label = paste(round((..count..) / sum(..count..) * 100
+    ), "%", sep = "")),
+    position = position_stack(vjust = 1.05),
+    size = 4
+  ) +
+  scale_x_continuous(breaks = seq(0, max(arrhythmia_df$class), 1))  +
+  theme_classic() 
+```
+
+The above histogram describes the distribution of labels. Class 01 refers to 'normal' which constitute 54% of our data. The contribution for various classes of arrhythmia is less, for class 11,12,13 it is 0. The code for this is available in appendix.
+
+```{r classdis, warning=FALSE, echo=FALSE}
+library(knitr)
+library(kableExtra)
+print_df = data.frame(c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16"), c("Normal","Ischemic changes (Coronary Artery Disease)","Old Anterior Myocardial Infarction","Old Inferior Myocardial Infarction","Sinus tachycardy","Sinus bradycardy","Ventricular Premature Contraction (PVC)","Supraventricular Premature Contraction","Left bundle branch block","Right bundle branch block","1 degree AtrioVentricular block","2 degree AV block","3 degree AV block","Left ventricule hypertrophy","Atrial Fibrillation or Flutter","Others"))
+colnames(print_df) = c("Class Label","Class Description")
+print_df %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+``` 
+
+### **Missing Values**
+
+```{r datainspect missing values, fig.width=3, fig.height=2,echo=FALSE}
+missing_stats = data.frame(summary_df[summary_df$n_missing != 0,c("skim_variable","n_missing")])
+colnames(missing_stats) = c("column_name","no_of_missing")
+missing_stats$percent_missing = paste(round(missing_stats$no_of_missing/nrow(arrhythmia_df)*100),"%") #Percenttage calculation
+library(ggplot2)
+ggplot(data=missing_stats, aes(x=column_name, y=no_of_missing)) +
+  geom_bar(stat="identity", fill="steelblue") +
+  ggtitle("Missing observations") +
+  xlab("Column Names") + ylab("Missing observations")+ylim(c(0,nrow(arrhythmia_df)))+
+    geom_text(aes(label=percent_missing))+theme_classic()
+```
+
+From the above bar plot it is clear that we have missing values in 5 columns with column J having missing values for around 83% of observations.  The code for this is available in appendix.
+
+
+### **Challenges and Mitigation**
+
+
+
+
+```{r challenges, warning=FALSE, echo=FALSE}
+library(knitr)
+library(kableExtra)
+print_df = data.frame(c("High number of features as compared to limited number of training data points","Missing values for numerical data columns","Heavily biased towards the normal cases"), c("We will try dimensionality reduction using PCA and feature subset using forward stepwise selection and compare classifier results to determine the best approach.","We will use various imputation techniques in the next section.","We will perform over sampling to balance the classes, we will only perform it on training data to avoid information leakage."))
+colnames(print_df) = c("Challenge","Mitigation")
+print_df %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```  
+
+## **Data Cleaning**
+
+### **Handling Missing Values**
+
+```{r datainspect3, warning=FALSE, echo=FALSE}
+library(knitr)
+library(kableExtra)
+print_df = data.frame(c("Heart_Rate","J","P","QRST","T"), c("There are two records for a male patient with age 75, height	190	and weight 80 and the Heart_Rate for one is missing (table below), a look at ECG values also indicate they are close hence it is possible that both these records belong to same patient and hence I have substituted the missing Heart_Rate with the available heart rate of the other record.","J contributes to QRS duration (by defintion of ECG waves, please refer to below figure) which is available for all records and hence we will drop J with a notion that QRS has the details of J and hence its contribution to the data will not be entirely lost.","Seems like Missing Completely At Random, I have used knn imputation to replace missing values.","Seems like Missing Completely At Random, I have used median of other values to replace missing values.","Seems like Missing Completely At Random, I have used knn imputation to replace missing values."))
+colnames(print_df) = c("Column","Action Taken")
+print_df %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```  
+![ECG Waveform](figure.png)
+
+
+```{r dataclean1,warning=FALSE,include=FALSE}
+library(Hmisc)
+library(dplyr)
+arrhythmia_labels = arrhythmia_df[,280]
+arrhythmia_df_nolabels = arrhythmia_df[,-280]
+
+```
+Table explaining missing Heart_Rate data
+```{r dataclean2, warning=FALSE,message=FALSE}
+ #Two records for a male patient, age 75, height 190, weight 80 and Heart_Rate for one is missing
+dplyr::filter(arrhythmia_df_nolabels[,c("Age","Sex","Height","Weight","Heart_Rate")],(Age==75 & Sex == 0 & Height== 190 & Weight == 80))
+```
+
+Data cleanup actions are perfomed below.
+```{r dataclean3, warning=FALSE,message=FALSE}
+
+processed_arrhythmia_df_nolabels = arrhythmia_df_nolabels[,-which(names(arrhythmia_df_nolabels) %in% c("J"))] #Drop column J
+processed_arrhythmia_df_nolabels$Heart_Rate[is.na(processed_arrhythmia_df_nolabels$Heart_Rate)] = 63 #Value from other record of similar age,sex,weight and height
+processed_arrhythmia_df_nolabels$QRST = Hmisc::impute(processed_arrhythmia_df_nolabels$QRST, median)  #Impute QRST with mediam
+library(VIM)
+processed_arrhythmia_df_nolabels = kNN(processed_arrhythmia_df_nolabels,
+                                       variable = c("P", "T"),
+                                       k = 6) #knn impute column P,T
+processed_arrhythmia_df_nolabels = processed_arrhythmia_df_nolabels[,-which(names(processed_arrhythmia_df_nolabels) %in% c("P_imp", "T_imp"))]
+```
+
+
+
+
+### **Outlier Examination**
+
+```{r data and labels, include=FALSE}
+pairs(arrhythmia_df_nolabels[,c('Age', 'Sex', 'Height', 'Weight')], col = "red",pch=16,cex=0.8,main="Non ECG parameters")
+```
+
+```{r data and labels2, message=FALSE,warning=FALSE, fig.width=4, fig.height=3}
+library(GGally)
+ggpairs(arrhythmia_df_nolabels[,c('Age', 'Sex', 'Height', 'Weight')], aes(alpha = 0.8))
+```
+
+Examining the pair wise plots for height and weight i.e. the 2 left bottom ones indicate there are some outliers in Height and Weight attributes and hence will examine them via boxplots. The code for box plot is in the appendix.
+
+```{r boxplots, fig.width=8, fig.height=1.2,warning=FALSE,message=FALSE,echo=FALSE}
+require(gridExtra)
+plot1 = ggplot(data = arrhythmia_df_nolabels, aes(x = Height)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) +  ggtitle("Spread of Height")
+plot2 = ggplot(data = arrhythmia_df_nolabels, aes(x = Weight)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) +  ggtitle("Spread of Weight")
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+
+```{r datainspect4, warning=FALSE, echo=FALSE}
+library(knitr)
+library(kableExtra)
+print_df = data.frame(c("Height","Weight"), c("2 observation more than 600","1 observation around 160"),c("does not seem realistic for height more than 600 centimetres and hence I have substituted them with median of remaining observations.","160 kilograms seems to be realistic and hence I have taken no action."))
+colnames(print_df) = c("Column","Outliers","Action Plan")
+print_df %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```  
+
+
+```{r dataclean5,warning=FALSE,message=FALSE}
+processed_arrhythmia_df_nolabels$Height[which(processed_arrhythmia_df_nolabels$Height > 600)] = median(processed_arrhythmia_df_nolabels$Height[-which(processed_arrhythmia_df_nolabels$Height > 600)])
+```
+
+
+```{r boxplots 3,include=FALSE}
+#Can be revisted later for inclusion
+Columns_for_boxplot= c("QRS_Dur","P-R_Int","Q-T_Int","T_Int","P_Int")
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of waveform interval") +xlab("Milli seconds")
+ #There seems to be some outliers in P-R_Int i.e. 0 and greather than 500
+```
+
+```{r corplot 3,include=FALSE}
+res <- cor(processed_arrhythmia_df_nolabels[,c("QRS_Dur","P-R_Int","Q-T_Int","T_Int","P_Int")])
+library(corrplot)
+corrplot(res, type = "upper", order = "hclust",tl.col = "black", tl.srt = 45)
+#"P-R_Int", P_Int
+```
+
+```{r check P-R_Int,include = FALSE}
+length(which(processed_arrhythmia_df_nolabels$"P-R_Int" == 0  | processed_arrhythmia_df_nolabels$"P-R_Int" > 500))
+#The figure 18 is significant, hence I will keep those.
+```
+
+
+```{r boxplots 4, warning=FALSE,include=FALSE}
+
+Columns_for_boxplot= c("QRS","T","P","J","Heart_Rate")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of Vector angles") +xlab("Milli seconds")
+```
+
+```{r corplot 4,include=FALSE}
+res <- cor(processed_arrhythmia_df_nolabels[,c("QRS","T","P")])
+library(corrplot)
+corrplot(res, type = "upper", order = "hclust",tl.col = "black", tl.srt = 45)
+#"P-R_Int", P_Int
+```
+
+
+```{r boxplots 5,include=FALSE}
+
+Columns_for_boxplot= c("Q_Wave","R_Wave","S_Wave")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of width") +xlab("Milli seconds")
+```
+
+```{r boxplots 6,include=FALSE}
+#Can consider later
+Columns_for_boxplot= c("R'_Wave","S'_Wave","Int_Def","Rag_R_Nom")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of peaks after R") +xlab("Milli seconds")
+```
+
+```{r frequency of values,include=FALSE}
+#Can consider later
+Cols_for_freq= c("R'_Wave","S'_Wave","Rag_R_Nom")
+for (each_freq in Cols_for_freq)
+{
+print(paste("Frequency of values in",each_freq))
+print(table(arrhythmia_df[,each_freq]))
+}
+#table(arrhythmia_df$Rag_R_Nom)
+#table(arrhythmia_df$"'_Wave")
+#S'_Wave only has 0s in it. So it is ok.
+#R'_wave and Rag_R_Norm has majorly 0s, which is also ok.
+```
+
+
+
+
+```{r boxplots 7,include=FALSE}
+
+Columns_for_boxplot= c("Diph_R_Nom","Rag_P_Nom","Diph_P_Nom","Rag_T_Nom","Diph_T_Nom")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds")
+```
+
+
+```{r frequency of values2,include=FALSE}
+
+Cols_for_freq= c("Diph_R_Nom","Rag_P_Nom","Diph_P_Nom","Rag_T_Nom","Diph_T_Nom")
+for (each_freq in Cols_for_freq)
+{
+print(paste("Frequency of values in",each_freq))
+print(table(arrhythmia_df[,each_freq]))
+}
+
+#We again have a lot of 0s for Diph_R_Nom,Rag_P_Nom,Diph_P_Nom,Rag_T_Nom,Diph_T_Nom, these are ok. These are categorical variables.
+```
+
+
+
+
+
+
+```{r boxplots 8, fig.width=18, fig.height=10,include=FALSE}
+
+Columns_for_boxplot= c("DII00", "DII01","DII02", "DII03", "DII04","DII05","DII06","DII07","DII08","DII09","DII10","DII11","DIII00","DIII01","DIII02", "DIII03", "DIII04","DIII05","DIII06","DIII07","DIII08","DIII09","DIII10","DIII11")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+```{r boxplots9, fig.width=20, fig.height=10,include=FALSE}
+
+Columns_for_boxplot= c("AVR00","AVR01","AVR02","AVR03","AVR04","AVR05","AVR06","AVR07","AVR08","AVR09","AVR10","AVR11","AVL00","AVL01","AVL02","AVL03","AVL04","AVL05","AVL06","AVL07","AVL08","AVL09","AVL10","AVL11")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+```{r crrplr, fig.width=20, fig.height=10,include=FALSE}
+#later
+corrplot(cor(processed_arrhythmia_df_nolabels[,c("AVR00","AVR01","AVR02","AVR03","AVR04","AVR05")]), type = "upper", order = "hclust",tl.col = "black", tl.srt = 45)
+```
+
+```{r boxplots10,include=FALSE}
+
+Columns_for_boxplot= c("AVF00","AVF01","AVF02","AVF03","AVF04","AVF05","AVF06","AVF07","AVF08","AVF09","AVF10","AVF11")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()
+```
+
+```{r boxplots11, fig.width=18, fig.height=10,include=FALSE}
+#LAter - V201,V205 - 0.6 correlation
+Columns_for_boxplot= c("V100","V101","V102","V103","V104","V105","V106","V107","V108","V109","V110","V111","V200","V201","V202","V203","V204","V205","V206","V207","V208","V209","V210","V211")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+```{r corrplot4,include=FALSE}
+corrplot(cor(processed_arrhythmia_df_nolabels[,c("V101","V201","V301","V401","V501")]), type = "upper", order = "hclust",tl.col = "black", tl.srt = 45)
+#V101,v201 && V201,V301 seems to be correlated
+```
+
+
+
+
+
+```{r boxplots115, fig.width=18, fig.height=10,include=FALSE}
+
+Columns_for_boxplot= c("V300","V301","V302","V303","V304","V305","V306","V307","V308","V309","V310","V311","V400","V401","V402","V403","V404","V405","V406","V407","V408","V409","V410","V411")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+```{r corrplot6,include=FALSE}
+#V301, V305 - 0.83 corre
+corrplot(cor(processed_arrhythmia_df_nolabels[,c("V101","V201","V301","V305")]), type = "upper", order = "hclust",tl.col = "black", tl.srt = 45)
+#V101,v201 && V201,V301 seems to be correlated
+```
+
+```{r boxplots1155, fig.width=6, fig.height=1.5,echo=FALSE}
+#Side by side boxplot for similar features for better comparison
+Columns_for_boxplot = c("V101", "V201", "V301")
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot]))) #Creating dummy data frame for storing all 3 column values in one for boxplotting
+colnames(wfdur_df) = c("Vx01", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = Vx01)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) + ggtitle("Spread of V101,V201,V301") + xlab("Value") + theme(axis.text =
+                                                                    element_text(size = 14),
+                                                                  axis.title = element_text(size = 14))
+```
+
+V101, V201,V301 indicates some outliers and there seems to be a pattern i.e. one highest value for all. The code for this is available in appendix. Hence examining the highest value of V101.
+
+```{r frequency of values3, include=FALSE}
+Cols_for_freq= c("V101","V201","V301")
+for (each_freq in Cols_for_freq)
+{
+print(paste("Frequency of values in",each_freq))
+print(table(arrhythmia_df[,each_freq]))
+}
+
+```
+
+
+```{r  v101,v201,v301}
+arrhythmia_df[arrhythmia_df$V101 > 200,c("V101","V201","V301","class")]
+```
+
+It looks like outlier of V101, V201, V301 belong to same data point and to a rare class of arrhythmia i.e. class 10. As they belong a rare class and hence they do not seem to fit with others but these are not outliers.
+
+```{r boxplots12, fig.width=18, fig.height=10, include=FALSE}
+
+Columns_for_boxplot= c("V500","V501","V502","V503","V504","V505","V506","V507","V508","V509","V510","V511","V600","V601","V602","V603","V604","V605","V606","V607","V608","V609","V610","V611")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+
+
+
+
+```{r boxplots13, fig.width=12, fig.height=8, include=FALSE}
+
+Columns_for_boxplot= c("JJ_Wave","Amp_Q_Wave","Amp_R_Wave","Amp_S_Wave","R_Prime_Wave","S_Prime_Wave","P_Wave","T_Wave")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+
+```{r boxplots14, fig.width=12, fig.height=8, include=FALSE}
+
+Columns_for_boxplot= c("QRSA","QRSTA","DII170","DII171","DII172","DII173","DII174","DII175","DII176","DII177","DII178","DII179")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+```{r corrplot7, fig.width=12, fig.height=8, include=FALSE}
+cor(processed_arrhythmia_df_nolabels[,c("DII172","DII173","DII178","DII179")])
+#DII172,DII178 - cor 0.79
+#DII179,DII178 - cor 0.69
+```
+
+```{r boxplots155, fig.width=12, fig.height=8, include=FALSE}
+
+Columns_for_boxplot= c("DIII180","DIII181","DIII182","DIII183","DIII184","DIII185","DIII186","DIII187","DIII188","DIII189")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+
+```{r boxplots1156, fig.width=6, fig.height=1.5,echo=FALSE}
+#for later use
+Columns_for_boxplot = c("DIII188", "DIII189")  #Side by side boxplot for similar features for better comparison
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot]))) #Creating dummy data frame for storing all 2 column values in one for boxplotting
+colnames(wfdur_df) = c("DIII18x", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = DIII18x)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) + ggtitle("Spread of DIII188,DIII189") + xlab("Value") + theme(axis.text =
+                                                                     element_text(size = 14),
+                                                                   axis.title = element_text(size = 14))
+```
+DIII188, DIII189 indicates some outliers and there seems to be a pattern i.e. one highest value for all. Hence
+examining the highest value of DIII188.
+
+```{r  DIII188DIII189}
+arrhythmia_df[arrhythmia_df$DIII188 > 60,c("DIII188","DIII189","class")]
+```
+
+It looks like outlier of DIII188, DIII189 belong to same data point and to a rare class of arrhythmia i.e. class
+14. As they belong a rare class and hence they do not seem to fit with others but these are not outliers.
+
+
+```{r frequency of values4,include=FALSE}
+#DIII188,DIII189 indicates some outliers hence examining the same.
+Cols_for_freq= c("DIII188","DIII189")
+for (each_freq in Cols_for_freq)
+{
+print(paste("Frequency of values in",each_freq))
+print(table(arrhythmia_df[,each_freq]))
+}
+
+```
+
+
+```{r  DIII188,DIII189-2,include=FALSE}
+#Examining outlier of DIII188
+arrhythmia_df[arrhythmia_df$DIII188 == 66.7,]
+#It looks like the outlier of DIII188, DIII189 belong to the same data point and belong to a rare class of arrhytmia i.e. class 14. Hence these are not outliers, as they belong a rare class they do not seem to fit with others.
+```
+
+
+
+
+
+```{r boxplots152, fig.width=12, fig.height=8,include=FALSE}
+
+Columns_for_boxplot= c("AVR190","AVR191","AVR192","AVR193","AVR194","AVR195","AVR196","AVR197","AVR198","AVR199")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+```{r boxplots15, fig.width=12, fig.height=8,include=FALSE}
+
+Columns_for_boxplot= c("AVL200","AVL201","AVL202","AVL203","AVL204","AVL205","AVL206","AVL207","AVL208","AVL209")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+
+```{r boxplots16, fig.width=12, fig.height=8,include=FALSE}
+
+Columns_for_boxplot= c("AVF210","AVF211","AVF212","AVF213","AVF214","AVF215","AVF216","AVF217","AVF218","AVF219")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+
+```{r boxplots17, fig.width=16, fig.height=8,include=FALSE}
+
+Columns_for_boxplot= c("V1220","V1221","V1222","V1223","V1224","V1225","V1226","V1227","V1228","V1229","V2230","V2231","V2232","V2233","V2234","V2235","V2236","V2237","V2238","V2239")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+
+```{r boxplots18, fig.width=18, fig.height=8,include=FALSE}
+
+Columns_for_boxplot= c("V3240","V3241","V3242","V3243","V3244","V3245","V3246","V3247","V3248","V3249","V4250","V4251","V4252","V4253","V4254","V4255","V4256","V4257","V4258","V4259")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+
+
+
+```{r boxplots19, fig.width=20, fig.height=8,include=FALSE}
+
+Columns_for_boxplot= c("V5260","V5261","V5262","V5263","V5264","V5265","V5266","V5267","V5268","V5269","V6270","V6271","V6272","V6273","V6274","V6275","V6276","V6277","V6278","V6279")
+
+ wfdur_df= data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)),as.vector(t(arrhythmia_df[,Columns_for_boxplot])))
+ colnames(wfdur_df) = c("WaveForm","Value")
+ 
+ ggplot(data=wfdur_df, aes(x=Value,y=WaveForm)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Spread of .............") +xlab("Milli seconds") + coord_flip()+  theme(axis.text=element_text(size=14),axis.title=element_text(size=14))
+```
+Similar features have been examined in the same manner i.e. by using side by side box plots. The code for the same is available in appendix. 
+
+### **Identify correlated features**
+
+```{r nonzerovar,include=FALSE}
+nonzero_var = c()
+categorical_columns = c("Sex","Rag_R_Nom", "Diph_R_Nom", "Rag_P_Nom", "Diph_P_Nom", "Rag_T_Nom")
+for (eachcol in colnames(processed_arrhythmia_df_nolabels[,5:278]))
+{
+  if (length(unique(processed_arrhythmia_df_nolabels[,eachcol])) < 10 )
+    
+  {
+    categorical_columns = c(categorical_columns,eachcol)
+    
+  }
+else if(var(processed_arrhythmia_df_nolabels[,eachcol]) != 0 & !(eachcol %in% categorical_columns))
+{
+ nonzero_var = c(nonzero_var,eachcol)
+}
+}
+categorical_columns = unique(categorical_columns)
+```
+
+
+```{r corrploty, include=FALSE}
+res <- cor(processed_arrhythmia_df_nolabels[,nonzero_var])
+library(corrplot)
+corrplot(res, type = "upper", order = "hclust",tl.col = "black", tl.srt = 45)
+```
+
+#### Identifying continuous ECG correlated features:
+
+```{r corelation}
+cormatrix_res <- cor(processed_arrhythmia_df_nolabels[, nonzero_var]) #Creating a correlation matrix for all continous features
+x1 = y1 = c()
+for (i in seq(nrow(cormatrix_res)))
+{
+  for (j in seq(ncol(cormatrix_res)))
+  {
+    if (cormatrix_res[i, j] > 0.9 & i != j) #Identifying features which have a  correlation of more than 0.9
+    {
+      x1 = c(x1, rownames(cormatrix_res)[i])  #Rowname, colname of the matrix include the feature names
+      y1 = c(y1, colnames(cormatrix_res)[j])
+    }
+  }
+}
+corelationcols = data.frame(x1, y1) #Creating a data frame
+related_numerical_cols = corelationcols[!duplicated(t(apply(corelationcols, 1, sort))), ] #Removing duplicates
+related_numerical_cols$x1 = as.character(related_numerical_cols$x1)
+related_numerical_cols$y1 = as.character(related_numerical_cols$y1)
+colums_to_drop = related_numerical_cols$y1 #Saving the correlated features for future use
+```
+```{r printtable2cor, echo=FALSE,include=FALSE}
+print_df = data.frame(related_numerical_cols$x1,
+                      related_numerical_cols$y1,
+                      c(sapply(seq(
+                        nrow(related_numerical_cols)
+                      ), function(x) {
+                        cor(processed_arrhythmia_df_nolabels[, related_numerical_cols[x, 1]],
+                            processed_arrhythmia_df_nolabels[, related_numerical_cols[x, 2]])
+                      })))
+colnames(print_df) = c("Column X", "Column Y", "Correlation")
+print_df %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+My analysis revealed that the below continuous variables are correlated and hence visualizing. The code for this visualization is available in appendix
+```{r ggpairvis, include=FALSE}
+
+regline_fn <- function(data, mapping, ...){ 
+  p <- ggplot(data = data, mapping = mapping) + geom_point() + 
+    geom_smooth(method=loess, fill="red", color="red", ...) +
+    geom_smooth(method=lm, fill="blue", color="blue", ...)
+  p}
+```
+```{r ggpairvis2, message=FALSE,warning=FALSE, fig.width=10, fig.height=1.8,echo=FALSE}
+require(gridExtra)
+plot1 = ggpairs(processed_arrhythmia_df_nolabels[,c(related_numerical_cols[1,1],related_numerical_cols[1,2])], lower = list(continuous = regline_fn))
+plot2 = ggpairs(processed_arrhythmia_df_nolabels[,c(related_numerical_cols[2,1],related_numerical_cols[2,2])], lower = list(continuous = regline_fn))
+plot3 = ggpairs(processed_arrhythmia_df_nolabels[,c(related_numerical_cols[3,1],related_numerical_cols[3,2])], lower = list(continuous = regline_fn))
+plot4 = ggpairs(processed_arrhythmia_df_nolabels[,c(related_numerical_cols[4,1],related_numerical_cols[4,2])], lower = list(continuous = regline_fn))
+grid.arrange(grid.grabExpr(print(plot1)),grid.grabExpr(print(plot2)),grid.grabExpr(print(plot3)),grid.grabExpr(print(plot4)), ncol=4)
+```
+
+The bottom left of each graph shows the points of the respective columns and a smotting line to indicate they are related. We also have correlation described in all plot as > 0.9. Hence we can drop these columns i.e. AVR194, AVF212, AVF218.
+
+
+
+#### Identifying categorical ECG correlated parameters using Goodman and Kruskal’s Tau measure:
+
+
+```{r krushalgoodman2,warning=FALSE,message=FALSE}
+library("GoodmanKruskal")
+subset_arrhythmia_df <-   subset(processed_arrhythmia_df_nolabels, select = categorical_columns)
+GKmatrix1 <- GKtauDataframe(subset_arrhythmia_df)  #Calculating Goodman and Kruskal’s Tau measure for categorical features
+x2 = y2 = c()
+for (i in seq(nrow(GKmatrix1)))
+{
+  for (j in seq(ncol(GKmatrix1)))
+  {
+    if (!is.na(GKmatrix1[i, j]))
+    {
+      if (GKmatrix1[i, j] > 0.9 & i != j) #Identifying features which have a forward association of more than 0.9
+      {
+        x2 = c(x2, rownames(GKmatrix1)[i]) #Rowname, colname of the matrix include the feature names
+        y2 = c(y2, colnames(GKmatrix1)[j])
+      }
+    }
+  }
+}
+corelationcols2 = data.frame(x2, y2) #Storing the values in a data frame
+related_cat_cols = corelationcols2[!duplicated(t(apply(corelationcols2, 1, sort))), ] #Removing duplicates tuples
+```
+
+```{r krushalgoodmancond,message=FALSE,warning=FALSE, fig.width=10, fig.height=2,include=FALSE}
+related_cat_cols$x2 = as.character(related_cat_cols$x2)
+related_cat_cols$y2 = as.character(related_cat_cols$y2)
+regline_fn <- function(data, mapping, ...){p <- ggplot(data = data, mapping = mapping) + geom_point() + 
+    geom_smooth(method=loess, fill="red", color="red", ...) +
+    geom_smooth(method=lm, fill="blue", color="blue", ...)
+  p}
+require(gridExtra)
+plot1 = ggpairs(processed_arrhythmia_df_nolabels[,c(related_cat_cols[1,1],related_cat_cols[1,2])], lower = list(continuous = regline_fn))
+plot2 = ggpairs(processed_arrhythmia_df_nolabels[,c(related_cat_cols[2,1],related_cat_cols[2,2])], lower = list(continuous = regline_fn))
+plot3 = ggpairs(processed_arrhythmia_df_nolabels[,c(related_cat_cols[3,1],related_cat_cols[3,2])], lower = list(continuous = regline_fn))
+plot4 = ggpairs(processed_arrhythmia_df_nolabels[,c(related_cat_cols[4,1],related_cat_cols[4,2])], lower = list(continuous = regline_fn))
+grid.arrange(grid.grabExpr(print(plot1)),grid.grabExpr(print(plot2)),grid.grabExpr(print(plot3)),grid.grabExpr(print(plot4)), ncol=4)
+
+```
+
+
+After analysis we know that the below continuous features are correlated. We have also Tau values of forward association for reference.
+
+
+```{r printtable2, echo=FALSE,warning=FALSE,message=FALSE}
+print_df = data.frame(related_cat_cols$x2,related_cat_cols$y2, c(sapply(seq(nrow(related_cat_cols)),function(x){GKtau(processed_arrhythmia_df_nolabels[,related_cat_cols[x,1]],processed_arrhythmia_df_nolabels[,related_cat_cols[x,2]])$tauxy})))
+colnames(print_df) = c("Column X","Column Y","Tau(x,y)")
+t(print_df) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F,latex_options = "scale_down")
+library(stringr)
+print(paste("Hence these columns can be dropped -",str_replace_all(paste(shQuote(unique(related_cat_cols$y2), type="cmd"), collapse=", "),"\"","")))
+```
+```{r coldrop2, echo=FALSE}
+colums_to_drop = c(colums_to_drop,related_cat_cols$y2)
+```
+
+## **Evaluation metric**
+**We will use macro averaged f1-score and macro averaged recall as metric to evaluate our model**
+
+We will calculate macro averaged f1 as a simple arithmetic mean of our per-class F1-scores.
+
+As the data is highly skewed towards class 01 and we want our classification models to classify all labels with equal importance we are choosing macro averaged f1. We will also use macro averaged recall as a guiding factor to ensure our model is able to classify high number of relevant classes.
+
+We have defined a function in the below code to calculate macro avergaed f1, macro averaged recall.
+```{r calcf1fun,warning=FALSE,message=FALSE}
+calcF1Scores = function(actual, predicted) {
+  actual = as.numeric(actual)
+  predicted = as.numeric(predicted)
+  df = data.frame(actual = actual, predicted = predicted) #Creare a dataframe for actual and predicted for eacy comparison
+  fone = recall = c()
+  for (i in seq(min(actual), max(actual))) {  #Calculate fone and recall for every class
+    tp = nrow(df[df$predicted == i & df$actual == i, ])
+    fp = nrow(df[df$predicted == i & df$actual != i, ])
+    fn = nrow(df[df$predicted != i & df$actual == i, ])
+	#Calculate precision recall and f1
+    PR = tp / (tp + fp) 
+    RE = tp / (tp + fn)
+    f1 = (2 * PR * RE) / (PR + RE)
+    #Handle some exception scenarios
+    if (tp == fp & fp == fn & fn == 0) 
+    {
+      PR = 1
+      RE = 1
+      f1 = 1
+    }
+    else if (tp == fp & fp == 0)
+    {
+      PR = 1
+      RE = tp / (tp + fn)
+      f1 = (2 * PR * RE) / (PR + RE)
+      
+    } else if (tp == 0)
+    {
+      PR = 0
+      RE = 0
+      f1 = 0
+    }
+    fone = c(fone, f1)
+    recall = c(recall, RE) 
+  }
+  return(list(mean(fone), mean(recall))) #Avergae values of all classes to calculate macro f1
+}
+```
+
+## **Dimension Reduction**
+
+### **Principal Component Analysis**
+
+I have performed PCA on the dataset keeping correlated columns and on the dataset without keeping correlated columns. The code for PCA is in the appendix.
+
+
+```{r perform pca, fig.width=6, fig.height=2,echo=FALSE}
+arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels)
+tot.var <- sum(arrhythmia.pca$sdev ^ 2)
+var.explained <-  data.frame(pc = seq(1:278),
+             var.explained  = arrhythmia.pca$sdev ^ 2 / tot.var)
+cum_var.explained = c()
+for (i in seq(nrow(var.explained)))
+{
+  cum_var.explained =  c(cum_var.explained, sum(var.explained[1:i, 2]) * 100)
+}
+
+```
+
+```{r perform pca2, fig.width=6, fig.height=2,echo=FALSE}
+processed_arrhythmia_df_nolabels2 = processed_arrhythmia_df_nolabels[, -which(names(arrhythmia_df_nolabels) %in% colums_to_drop)]
+arrhythmia.pca2 <- prcomp(processed_arrhythmia_df_nolabels2)
+tot.var <- sum(arrhythmia.pca2$sdev ^ 2)
+var.explained <-
+  data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels2)),
+             var.explained  = arrhythmia.pca2$sdev ^ 2 / tot.var)
+cum_var.explained2 = c()
+for (i in seq(nrow(var.explained)))
+{
+  cum_var.explained2 =  c(cum_var.explained2, sum(var.explained[1:i, 2]) *
+                            100)
+}
+
+```
+
+```{r pcaplts, fig.width=12, fig.height=4,echo=FALSE}
+cum_var.explained_df <-
+  data.frame(pc = seq(1:278),  cum_var.explained  =  cum_var.explained)
+pca1 = ggplot(cum_var.explained_df[1:45, ], aes(pc, cum_var.explained)) + geom_bar(stat = "identity") + ggtitle("PCA on dataset with correlated features")  +
+  geom_hline(aes(yintercept = 95), colour = "red") + geom_text(aes(0, 95, label = "95% variability", vjust = 1), size = 3) +
+  labs(y = "% of cum. variance exp.") +
+  scale_x_continuous(breaks = seq(0, 45), "Principal Components")  +
+  theme_classic()
+#+     theme(plot.title = element_text(size = 10))
+cum_var.explained_df2 <-
+  data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels2)),  cum_var.explained2  =  cum_var.explained2)
+
+#+geom_hline(aes(yintercept = 80),colour = "red")+geom_text(aes( 0, 80, label = "80% variability", vjust = -1), size = 3)+geom_hline(aes(yintercept = 90),colour = "red")+geom_text(aes( 0, 90, label = "90% variability", vjust = -1), size = 3)+
+#+geom_hline(aes(yintercept = 80),colour = "red")+geom_text(aes( 0, 80, label = "80% variability", vjust = -1), size = 3) +geom_hline(aes(yintercept = 90),colour = "red")+geom_text(aes( 0, 90, label = "90% variability", vjust = -1), size = 3)
+
+pca2 = ggplot(cum_var.explained_df2[1:45, ], aes(pc, cum_var.explained2)) + geom_bar(stat = "identity") + ggtitle("PCA on dataset without correlated features") +
+  geom_hline(aes(yintercept = 95), colour = "red") + geom_text(aes(0, 95, label = "95% variability", vjust = 1), size = 3)  +
+  labs(y = "% of cum. variance exp.") +
+  scale_x_continuous(breaks = seq(0, 45), "Principal Components")  +
+  theme_classic()
+require(gridExtra)
+grid.arrange(pca1, pca2, nrow = 2)
+```
+
+We will have to use at least 39 principal components for dataset with correlated features and 36 principal compoenets for datatset without correlated features as they explain 95% variability. It seems that dropping the correlated features did not help with principal component analysis. This principal component analysis is performed on the entire data and is only for our evaluation. We will perform principal component analysis only on training data set while building classifiers. The code of cumulative variance plot is in the appendix.
+
+### **Feature subset**
+
+I have performed stepwise forward selection as below:
+
+1. Split the dataset into 60% for training and 40% for validation.
+2. Oversample the training data to balance classes.
+3. Perform classification for each feature and calculate macro weighted f1-score on the validation data.
+4. Keep the feature with best macro weighted f1-score.
+5. Repeat step 3 & 4 for 40 times by keeping the best predictors and augmenting predictors for each iteration.
+6. Choose minimum number of predictors with the best macro weighted f1-score.
+7. Repeat step 3,4,5 & 6 for kNN, LDA, Multinomial Log, Linear SVM, Polynomial SVM, Radial SVM.
+
+The below is the code for knn feature subset, the code for other classifier subset is in the appendix.
+
+```{r kNNfeaturesubset, eval=FALSE}
+library(ROSE) #ROSE package for oversampling
+selectFeature <-   #This function will return the feature with best macro f1-score 
+  function(train, test, cls.train, cls.test, features) {  
+    ## identify a feature to be selected
+    current.best.fone <- -Inf
+    selected.i <- NULL
+    for (i in 1:ncol(train)) {
+      current.f <- colnames(train)[i]
+      if (!current.f %in% features) { #Verify if the feature is already in considered in the list
+		#Create dataframe for classifiers to be used
+        subfeatures_df_train = data.frame(class = cls.train)
+        subfeatures_df_test = data.frame(class = cls.test)
+        allcols = c(features, current.f)
+        for (eachcol in allcols)  
+        {
+          subfeatures_df_train[, eachcol] = train[, eachcol]
+          subfeatures_df_test[, eachcol] = test[, eachcol]
+        }
+        
+		#Oversample the training data to balance minor classes
+        oversampled_df = subfeatures_df_train
+        all_exis_classes  = sort(unique(arrhythmia_labels))
+        for (each_minor_class in all_exis_classes[!all_exis_classes %in% 1]) #ovun.sample only works on dataframe with 2 classes and hence the loop over all minor classes
+        {   
+          testdf = subset(oversampled_df, class == each_minor_class | class == 1)
+          balanceddata <- ovun.sample(class ~ .,data = get("testdf", sys.frame(1)),method = "over",p = 0.5)$data  #Get balanced data          
+          oversampled_df = rbind(  #only adding the oversampled data of minor class and not considering the data of class 1
+            subset(balanceddata, class != 1),
+            subset(oversampled_df, class != each_minor_class)
+          )}
+        
+        flag <- TRUE
+        tryCatch({ #sometimes knn throws "too many ties" for some variables and hence catching to proceed to test next feature
+          preds = class::knn(oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop = FALSE],subfeatures_df_test[, -which(colnames(subfeatures_df_test) %in% c("class")), drop =FALSE],oversampled_df[, "class"])
+        }, error = function(e) {
+          flag <<- FALSE
+        })
+    
+        if (!flag) { next} #Iterate over next feature in case knn throws an error like "too many ties"
+        
+        f1score <- calcF1Scores(as.numeric(levels(preds))[preds], cls.test) #Calculate macro f1-score      
+        test.fone = round(f1score[[1]], 3)
+        if (test.fone > current.best.fone) { #Save the feature with best macro f1
+          current.best.fone <- test.fone
+          selected.i <- colnames(train)[i]
+        }
+      }
+    }
+    return(list(selected.i, current.best.fone))  #Return feature and fone score for plotting
+  }
+
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(arrhythmia_labels, p = .6)[[1]] #Split data into training and validation
+allFeatures <- colnames(processed_arrhythmia_df_nolabels)
+
+train <- processed_arrhythmia_df_nolabels[inTrain, ]
+test  <- processed_arrhythmia_df_nolabels[-inTrain, ]
+cls.train <- arrhythmia_labels[inTrain]
+cls.test <- arrhythmia_labels[-inTrain]
+features <- NULL
+fone_scores = NULL 
+
+#Iterating 100 times to find best 100 features
+for (j in 1:100) {
+  featureoutput <- selectFeature(train, test, cls.train, cls.test, features)
+  features <- c(features, featureoutput[[1]])
+  fone_scores = c(fone_scores, featureoutput[[2]])
+}
+knn_featuresubset_metrics = data.frame(Features=features,macrof1=fone_scores,index=seq(1:length(features))) #Dataframe to be used for plotting
+```
+
+```{r subsetplot,echo=FALSE,fig.width=16,fig.height=6}
+knnsubset = data.frame(Features=c("V305","V409","AVR11","AVL09","V103","AVF215","DIII09","V608","S_Prime_Wave","AVR08","V310","Rag_T_Nom","V6274","V203","V511","V2230","AVL201","AVL202","V500","DII171","AVF03","AVL04","P_Wave","DIII184","V109","DII177","AVF217","AVR191","AVR196","Amp_Q_Wave","JJ_Wave","V5266","V111"),macrof1=c(0.411,0.435,0.436,0.428,0.446,0.452,0.451,0.454,0.451,0.454,0.454,0.454,0.455,0.459,0.456,0.459,0.490,0.501,0.538,0.555,0.568,0.575,0.576,0.581,0.586,0.582,0.584,0.595,0.596,0.598,0.599,0.603,0.604),index=seq(1:33))
+ 
+p1= ggplot(data=knnsubset ,aes(x=index,y=macrof1))+geom_line(data=knnsubset ,aes(x=index,y=macrof1) ,size = 1)+ 	labs(title="kNN", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =knnsubset$index, labels=knnsubset$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+lvmsubset = data.frame(Features=c("V309","DIII11","DII09","Rag_T_Nom"),macrof1=c(0.617,0.776,0.776,0.776),index=seq(1:4))
+ 
+p2= ggplot(data=lvmsubset ,aes(x=index,y=macrof1))+geom_line(data=lvmsubset ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="Linear SVM", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =lvmsubset$index, labels=lvmsubset$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+radsubset = data.frame(Features=c("V309","DIII11","DII09","Rag_T_Nom"),macrof1=c(0.617,0.776,0.776,0.776),index=seq(1:4))
+ 
+p3= ggplot(data=radsubset ,aes(x=index,y=macrof1))+geom_line(data=radsubset ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="Radial SVM", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =radsubset$index, labels=radsubset$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ multilogsubset = data.frame(Features=c("V107","V203","S__Wave"),macrof1=c(0.620,0.706,0.706),index=seq(1:3))
+ 
+p4= ggplot(data=multilogsubset ,aes(x=index,y=macrof1))+geom_line(data=multilogsubset ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="Multinomial Log", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =multilogsubset$index, labels=multilogsubset$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+ldasubset = data.frame(Features=c("V103","Rag_R_Nom","Rag_T_Nom"),macrof1=c(0.730,0.730,0.730),index=seq(1:3))
+ 
+p5= ggplot(data=ldasubset ,aes(x=index,y=macrof1))+geom_line(data=ldasubset ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="LDA", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =ldasubset$index, labels=ldasubset$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+polysvmsubset = data.frame(Features=c("V107","S__Wave"),macrof1=c(0.62,0.62),index=seq(1:2))
+p6= ggplot(data=polysvmsubset ,aes(x=index,y=macrof1))+geom_line(data=polysvmsubset ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="Polynomial SVM", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =polysvmsubset$index, labels=polysvmsubset$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+require(gridExtra)
+
+grid.arrange(p1,p2,p3,p4,p5,p6, ncol=3,nrow=2)
+```
+ 
+Each subplot indicates the macro f1-score for an additional predictor for the respective classifier. Example - the right top plot indicates that the macro f1-score for Radial SVM is 0.58 for V301 predictor and 0.77 for V309 and DIII11 predictors. These subplots does not show the entire analysis performed but only represent the required information. The code for these subplots is available in appendix.
+
+We could then conclude the below as best features for the respective classifiers.
+
+```{r Featuresubsettable, warning=FALSE, echo=FALSE}
+library(knitr)
+library(kableExtra)
+print_df = data.frame(c("kNN","LDA","Multinomial Log","Linear SVM","Polynomial SVM","Radial SVM"), c("V305, V409, AVR11, AVL09, V103, AVF215, DIII09, V608, S_Prime_Wave, AVR08, V310, Rag_T_Nom, V6274, V203, V511, V2230, AVL201, AVL202, V500, DII171, AVF03, AVL04, P_Wave, DIII184, V109, DII177, AVF217, AVR191, AVR196, Amp_Q_Wave, JJ_Wave, V5266, V111","V103","V107, V203","V309, DIII11","V107","V309, DIII11"),c("0.603","0.730","0.706","0.776","0.620","0.776"))
+colnames(print_df) = c("Classifier","Best Features","Macro f1")
+print_df %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```  
+
+```{r perform pca plot,include=FALSE}
+arrhythmia.pca.df <- data.frame(PC1 = arrhythmia.pca$x[,1], PC2 = arrhythmia.pca$x[,2], PC3 = arrhythmia.pca$x[,3], labels = as.factor(arrhythmia_df$class))
+ggplot(arrhythmia.pca.df, aes(PC1, PC2, col = labels)) + geom_point()
+```
+
+
+```{r perform tSNE,include=FALSE}
+library(Rtsne)
+arrhythmia.tsne <- Rtsne(processed_arrhythmia_df_nolabels, perplexity = 5)
+arrhythmia.tsne.df <- data.frame(dim1 =arrhythmia.tsne$Y[,1], dim2 = arrhythmia.tsne$Y[,2], labels = as.factor(arrhythmia_df$class))
+
+ggplot(arrhythmia.tsne.df, aes(dim1, dim2, col = labels)) + geom_point()
+```
+```{r message=FALSE,echo=FALSE}
+
+# sensitivity
+Se <- function(mat) {
+  apply(mat, 2, function(x) {
+    TN <- x[1]
+    FP <- x[2]
+    TP <- x[3]
+    FN <- x[4]
+    TP/(TP+FN)
+  })
+}
+
+# specificity
+Sp <- function(mat) {
+  apply(mat, 2, function(x) {
+    TN <- x[1]
+    FP <- x[2]
+    TP <- x[3]
+    FN <- x[4]
+    TN/(FP+TN)
+  })
+}
+
+#knn.fnr.k <- c(knn.fnr.k, knn.FN/(knn.TP + knn.FN)) 
+
+# F1 score
+F1 <- function(mat) {
+  apply(mat, 2, function(x){
+    TN <- x[1]
+    FP <- x[2]
+    TP <- x[3]
+    FN <- x[4]
+    2*TP/(2*TP+FP+FN)
+  })
+}
+
+# geometric mean
+GMean <- function(mat) {
+  apply(mat, 2, function(x){
+    TN <- x[1]
+    FP <- x[2]
+    TP <- x[3]
+    FN <- x[4]
+    sqrt((TP/(TP+FN))*(TP/(TP+FP)))
+  })
+}	
+
+## create a wrapper function for evaluation
+evaluate <- function(TN, FP, TP, FN) {
+  mat <- rbind(TN, FP, TP, FN)
+
+  #cat(c("sen:", round(mean(Se(mat)), digits=3)))
+  #cat(" ")
+  
+  #cat(c("spec:", round(mean(Sp(mat)), digits=3)))
+  cat(" ")
+  
+  #cat(c("F1:", round(mean(F1(mat)), digits=3)))
+  #cat(" ")
+
+  #cat(c("GM:", round(mean(GMean(mat)), digits=3)))
+  #cat("\n")
+  sen = round(mean(Se(mat)), digits=3)
+  fone = round(mean(F1(mat)), digits=3)
+  return(list(sen,fone))
+}
+```
+```{r cleancolnames,include=FALSE}
+colnames(processed_arrhythmia_df_nolabels) = str_replace(colnames(processed_arrhythmia_df_nolabels),"-","_")
+colnames(processed_arrhythmia_df_nolabels) = str_replace(colnames(processed_arrhythmia_df_nolabels),"'","_")
+```
+
+## **Approach for classification**
+
+We will try kNN, LDA, Multinomial Log, Linear SVM, Polynomial SVM, Radial SVM in 3 different approaches via cross validation.
+
+### **Approach 1**
+
+1. Split the dataset with correlated features into 10 folds.
+2. For every fold, consider one fold as a validation data set and the remaining as training data set.
+3. Perform PCA on the training data set.
+4. Identify minimum number of principal components i.e. 'p' to explain 95% variability, in most cases it is 39.
+5. Oversample 'p' principal components to balance classes using ROSE package.
+6. Perform kNN, LDA, Multinomial Log, Linear SVM, Polynomial SVM, Radial SVM on the 'p' principal components of training data.
+7. Apply training PCA on the validation data set.
+8. Select 'p' principal components of the validation data set.
+9. Calculate macro weight f1 for every classifier on the validation data set principal components.
+10. Repeat from step 2 for all the folds.
+11. Average macro weighted f1-score of all folds to achieve one macro weighted f1 for each classifier.
+```{r lib,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
+library(caret)
+library(mlbench)
+library(caret)
+library(MASS)
+library(class)
+library(pROC)
+library(e1071)
+library(nnet)
+library(ROSE)
+```
+
+The below is the code for approach 1.
+```{r approach1,warning=FALSE,message=FALSE}
+set.seed(1)
+fold <- createFolds(arrhythmia_labels, k = 10) #Create 10-fold cross-validation
+
+#Variables to hold f1 score and recall for every hold
+tmpf1knn = tmpf1linsvm = tmpf1ploy = tmpf1radc = tmpf1lda = tmpf1log = c()
+tmprecaknn = tmprecalinsvm = tmprecaploy = tmprecaradc = tmprecalda = tmprecalog = c()
+
+for (i in 1:length(fold)) {
+
+  arrhythmia.pca <-prcomp(processed_arrhythmia_df_nolabels[-fold[[i]], ]) #Apply PCA on training set
+  
+  #Calculate cum variance
+  tot.var <- sum(arrhythmia.pca$sdev ^ 2)
+  var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]], ])),
+               var.explained  = arrhythmia.pca$sdev ^ 2 / tot.var)
+  cum_var.explained = c()
+  for (u in seq(nrow(var.explained)))
+  {
+    cum_var.explained =  c(cum_var.explained, sum(var.explained[1:u, 2]) * 100)
+  }
+  
+  pctouse = min(which(cum_var.explained > 95)) #identify number of PCs that explain 95% variability
+  #Oversample minor classes of training Principal components
+  oversampled_df = data.frame(arrhythmia.pca$x[, 1:pctouse])
+  oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+  all_exis_classes  = sort(unique(arrhythmia_labels))
+  for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+  {
+    balanceddata <- ovun.sample(class ~ .,data = subset(oversampled_df, class == eachminroclass | class == 1),method = "over",p = 0.5)$data
+    oversampled_df = rbind(subset(balanceddata, class != 1),
+                           subset(oversampled_df, class != eachminroclass))
+  }
+  oversampled_df <- oversampled_df[sample(nrow(oversampled_df)), ]  #Shuffling rows
+
+#apply PCA on validation dataset
+  arrhythmia.pcatest = predict(arrhythmia.pca, processed_arrhythmia_df_nolabels[fold[[i]], ])
+ 
+ #Training on different classfiers and calculate validation f1-score
+  preds <- knn(oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =FALSE],data.frame(arrhythmia.pcatest[, 1:pctouse]),oversampled_df$class)
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]]) #Calculating validation macro f1-score 
+  tmpf1knn = c(tmpf1knn, f1score[[1]])
+  tmprecaknn = c(tmprecaknn, f1score[[2]])
+  
+  linsvm.model1 <- svm(x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =FALSE],y = oversampled_df$class,kernel = "linear",type = "C-classification")
+  preds <- predict(linsvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]]) 
+  tmpf1linsvm = c(tmpf1linsvm, f1score[[1]])
+  tmprecalinsvm = c(tmprecalinsvm, f1score[[2]])
+  
+  polysvm.model1 <- svm(x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =FALSE],y = oversampled_df$class,kernel = "polynomial",type = "C-classification")
+  preds <- predict(polysvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmpf1ploy = c(tmpf1ploy, f1score[[1]])
+  tmprecaploy = c(tmprecaploy, f1score[[2]])
+  
+  radsvm.model1 <- svm(x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =FALSE],y = oversampled_df$class,kernel = "radial",type = "C-classification")
+  preds <- predict(radsvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmpf1radc = c(tmpf1radc, f1score[[1]])
+  tmprecaradc = c(tmprecaradc, f1score[[2]])
+  
+  lda.model <- MASS::lda(class ~ ., data = oversampled_df)
+  preds = predict(lda.model, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))$class
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmpf1lda = c(tmpf1lda, f1score[[1]])
+  tmprecalda = c(tmprecalda, f1score[[2]])
+  
+  multinomlogmodel <- multinom(class ~ ., data = oversampled_df, trace = FALSE)
+  preds = predict(multinomlogmodel, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmpf1log = c(tmpf1log, f1score[[1]])
+  tmprecalog = c(tmprecalog, f1score[[2]])
+}
+
+fone.val = c(mean(tmpf1log),mean(tmpf1lda),mean(tmpf1knn),mean(tmpf1linsvm),mean(tmpf1ploy),mean(tmpf1radc))
+recall.val = c(mean(tmprecalog),mean(tmprecalda),mean(tmprecaknn),mean(tmprecalinsvm),mean(tmprecaploy),mean(tmprecaradc))
+
+#Store values for line plot
+plot_df95pca = data.frame(index = seq(1:6),fone = fone.val,recall = recall.val,algo = c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"))
+#Store values for box plot
+boxplot_df_pca95 = data.frame("Values" = c(tmprecalog,tmprecalda,tmprecaknn,tmprecalinsvm,tmprecaploy,tmprecaradc,tmpf1log,tmpf1lda,tmpf1knn,tmpf1linsvm,tmpf1ploy, tmpf1radc),"Classifiers" = rep(rep(c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"),each = 10), times = 2),"Metric" = rep(c("Macro Sensitivity", "Macro f1-score"), each = 60))
+```
+### **Approach 2**
+
+This will be same as approach 1, but with dataset excluding correlated features. The code for this is in appendix.
+
+### **Approach 3**
+
+1. Split the dataset with correlated features into 10 folds.
+2. For every fold, consider one fold as a validation data set and the remaining as training data set.
+3. Oversample training data set to balance classes.
+4. Select the best features (as described in above section) subset of oversampled training data respectively for every classifier.
+5. Perform kNN, LDA, Multinomial Log, Linear SVM, Polynomial SVM, Radial SVM.
+6. Calculate macro weight f1 for every classifier on the best features subset of validation data sets for every classifier respectively.
+7. Repeat from step 2 for all the folds.
+8. Average macro weighted f1-score of all folds to achieve one macro weighted f1 for each classifier.
+
+The below is the code for the same.
+```{r subsete,eval=FALSE}
+fold <- createFolds(arrhythmia_labels, k = 10)
+# apply 10-fold cross-validation
+tmp4f1knn = tmp4f1linsvm = tmp4f1ploy = tmp4f1radc = tmp4f1lda = tmp4f1log = c()
+tmp4recaknn = tmp4recalinsvm = tmp4recaploy = tmp4recaradc = tmp4recalda = tmp4recalog = c()
+
+for (i in 1:length(fold)) {
+  # Oversample training data
+  oversampled_df = processed_arrhythmia_df_nolabels[-fold[[i]], ]
+  oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+  all_exis_classes  = sort(unique(arrhythmia_labels))
+  for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1]) #looping as ovun.sample only support 2 classes to be balances in once
+  {
+  balanceddata <- ovun.sample(class ~ .,data = subset(oversampled_df, class == eachminroclass | class == 1),method = "over",p = 0.5)$data
+  oversampled_df = rbind(subset(balanceddata, class != 1),
+                           subset(oversampled_df, class != eachminroclass))
+  }
+ oversampled_df <- oversampled_df[sample(nrow(oversampled_df)), ]  #Shuffling rows
+  
+ knnfeatures = c("V305","V409","AVR11","AVL09","V103","AVF215","DIII09","V608","S_Prime_Wave","AVR08","V310","Rag_T_Nom","V6274","V203","V511","V2230","AVL201","AVL202","V500","DII171","AVF03","AVL04","P_Wave","DIII184","V109","DII177","AVF217","AVR191","AVR196","Amp_Q_Wave","JJ_Wave","V5266","V111")
+ linsvmfeatures = c("V309", "DIII11")
+ polysvmfeatures = 	 c("V107")
+ radsvmfeatures = c("V309", "DIII11")
+  ldafeatures = c("V103")
+  multilogfeatures = c("V107", "V203")
+  
+  preds <- knn(oversampled_df[, knnfeatures, drop = FALSE], processed_arrhythmia_df_nolabels[fold[[i]], knnfeatures],oversampled_df$class)
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1knn = c(tmp4f1knn, f1score[[1]])
+  tmp4recaknn = c(tmp4recaknn, f1score[[2]])
+  
+  linsvm.model1 <- svm(x = oversampled_df[, linsvmfeatures, drop = FALSE],y = oversampled_df$class,kernel = "linear",type = "C-classification")
+  preds <- predict(linsvm.model1, newdata = processed_arrhythmia_df_nolabels[fold[[i]], linsvmfeatures])
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1linsvm = c(tmp4f1linsvm, f1score[[1]])
+  tmp4recalinsvm = c(tmp4recalinsvm, f1score[[2]])
+  
+  polysvm.model1 <- svm(x = oversampled_df[, polysvmfeatures, drop = FALSE],y = oversampled_df$class,kernel = "polynomial",type = "C-classification")
+  preds <- predict(polysvm.model1, newdata = processed_arrhythmia_df_nolabels[fold[[i]], polysvmfeatures, drop = FALSE])
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1ploy = c(tmp4f1ploy, f1score[[1]])
+  tmp4recaploy = c(tmp4recaploy, f1score[[2]])
+    
+  radsvm.model1 <- svm(x = oversampled_df[, radsvmfeatures, drop = FALSE],y = oversampled_df$class,kernel = "radial",type = "C-classification")
+  preds <- predict(radsvm.model1, newdata = processed_arrhythmia_df_nolabels[fold[[i]], radsvmfeatures])
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1radc = c(tmp4f1radc, f1score[[1]])
+  tmp4recaradc = c(tmp4recaradc, f1score[[2]])
+  
+  ldafeatures_withclass = c("V103", "class")
+  lda.model <- MASS::lda(class ~ ., data = oversampled_df[, ldafeatures_withclass, drop = FALSE])  
+  preds = predict(lda.model, newdata = processed_arrhythmia_df_nolabels[fold[[i]], ldafeatures, drop = FALSE])$class
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1lda = c(tmp4f1lda, f1score[[1]])
+  tmp4recalda = c(tmp4recalda, f1score[[2]])
+  
+  multilogfeatures_with_class = c("V107", "V203", "class")
+  multinomlogmodel <- multinom(class ~ ., data = oversampled_df[, multilogfeatures_with_class, drop =FALSE], trace = FALSE)
+  preds = predict(multinomlogmodel, newdata = processed_arrhythmia_df_nolabels[fold[[i]], multilogfeatures])
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1log = c(tmp4f1log, f1score[[1]])
+  tmp4recalog = c(tmp4recalog, f1score[[2]])
+  
+}
+
+fone.val = c(mean(tmp4f1log ),mean(tmp4f1lda),mean(tmp4f1knn),mean(tmp4f1linsvm),mean(tmp4f1ploy),mean(tmp4f1radc))
+recall.val = c(mean(tmp4recalog ),mean(tmp4recalda),mean(tmp4recaknn),mean(tmp4recalinsvm),mean(tmp4recaploy),mean(tmp4recaradc))
+
+plot_dfsubset = data.frame(index= seq(1:6),fone=fone.val,recall=recall.val,algo= c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"))
+	
+boxplot_df_subset= data.frame("Values"=c(tmp4recalog,tmp4recalda,tmp4recaknn,tmp4recalinsvm,tmp4recaploy,tmp4recaradc,tmp4f1log,tmp4f1lda,tmp4f1knn,tmp4f1linsvm,tmp4f1ploy,tmp4f1radc),"Classifiers"=rep(rep(c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"),each =10),times=2),"Metric"=rep(c("Macro Sensitivity","Macro f1-score"),each=60))
+	
+```
+
+## **Classification performance evaluation**
+
+```{r all4class,echo=FALSE,warning=FALSE,message=FALSE,include=FALSE}
+	ggplot(data=plot_df95pca ,aes(x=index,y=fone))+geom_line(data=plot_df95pca ,aes(x=index,y=fone,color="f1-score") ,size = 1)+geom_line(data=plot_df95pca ,aes(x=index,y=recall,color="recall") ,size = 1)+labs(title="F1-score various algo - 95% var - with correlated columns")+ scale_x_continuous(breaks =plot_df95pca$index, labels=plot_df95pca$algo) +scale_color_manual(values = c('f1-score' = 'blue',  'recall' = 'green'))
+ 
+ ggplot(data=boxplot_df_pca95, aes(x=Classifiers,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer Evaluation  - 95% var - with correlated columns") + facet_wrap(~Metric)
+ 
+	
+```
+
+```{r pca2,echo=FALSE,include=FALSE}
+
+
+
+# create cross validation folds
+library(caret)
+library(mlbench)
+library(caret)
+library(MASS)
+library(class)
+library(pROC)
+library(e1071)
+library(nnet)
+library(ROSE)
+
+set.seed(1)
+
+#LDA_df = data.frame(arrhythmia.pca$x[,1:29],class=oversampled_df$class)
+
+
+fold <- createFolds(arrhythmia_labels, k = 10)
+# apply 10-fold cross-validation
+knn.TP <- knn.TN <- knn.FP <- knn.FN <- c()
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+linsvm.TP <- linsvm.TN <- linsvm.FP <- linsvm.FN <- c()
+
+linsvm.sen = linsvm.fone = c()
+knn.sen = knn.fone = c()
+
+
+poly.TP <- poly.TN <- poly.FP <- poly.FN <- c()
+
+poly.sen = poly.fone = c()
+
+
+radSVM.TP <- radSVM.TN <- radSVM.FP <- radSVM.FN <- c()
+
+radSVM.sen = radSVM.fone = c()
+
+
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+
+lda.sen = lda.fone = c()
+
+log.TP <- log.TN <- log.FP <- log.FN <- c()
+
+log.sen = log.fone = c()
+
+tmp2f1knn = tmp2f1linsvm = tmp2f1ploy = tmp2f1radc = tmp2f1lda = tmp2f1log = c()
+tmp2recaknn = tmp2recalinsvm = tmp2recaploy = tmp2recaradc = tmp2recalda = tmp2recalog = c()
+
+for (i in 1:length(fold)) {
+  # apply knn for classification
+  
+  arrhythmia.pca <-
+    prcomp(processed_arrhythmia_df_nolabels[-fold[[i]], -which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+  tot.var <- sum(arrhythmia.pca$sdev ^ 2)
+  var.explained <-
+    data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]], -which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])),
+               var.explained  = arrhythmia.pca$sdev ^ 2 / tot.var)
+  
+  cum_var.explained = c()
+  for (u in seq(nrow(var.explained)))
+  {
+    cum_var.explained =  c(cum_var.explained, sum(var.explained[1:u, 2]) * 100)
+  }
+  
+  pctouse = min(which(cum_var.explained > 95))
+  
+  
+  oversampled_df = data.frame(arrhythmia.pca$x[, 1:pctouse])
+  oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+  all_exis_classes  = sort(unique(arrhythmia_labels))
+  
+  
+  
+  for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+  {
+    #labels_factor<-as.factor(subset(processed_arrhythmia_df,class == 2 | class == 1)$class)
+    # (processed_arrhythmia_df,class == 2 | class == 1)
+    
+    balanceddata <-
+      ovun.sample(
+        class ~ .,
+        data = subset(oversampled_df, class == eachminroclass |
+                        class == 1),
+        method = "over",
+        p = 0.5
+      )$data
+    
+    oversampled_df = rbind(subset(balanceddata, class != 1),
+                           subset(oversampled_df, class != eachminroclass))
+  }
+  
+  #oversampled_df$class[oversampled_df$class > 13] = (oversampled_df$class - 3)
+  
+  #oversampled_df_forplot = oversampled_df
+  #oversampled_df$class = as.factor(oversampled_df$class)
+  
+  oversampled_df <-
+    oversampled_df[sample(nrow(oversampled_df)), ]  #Shuffling rows
+  
+  
+  
+  #arrhythmia.pcatest <- prcomp(processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+  
+  arrhythmia.pcatest = predict(arrhythmia.pca, processed_arrhythmia_df_nolabels[fold[[i]], -which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+  
+  preds <-
+    knn(oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                         FALSE],
+        data.frame(arrhythmia.pcatest[, 1:pctouse]),
+        oversampled_df$class)#, k=1)
+  
+  
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  
+  tmp2f1knn = c(tmp2f1knn, f1score[[1]])
+  tmp2recaknn = c(tmp2recaknn, f1score[[2]])
+  
+  linsvm.model1 <-
+    svm(
+      x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                           FALSE],
+      y = oversampled_df$class,
+      kernel = "linear",
+      type = "C-classification"
+    )#, cost = 2.5)
+  preds <-
+    predict(linsvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  
+  tmp2f1linsvm = c(tmp2f1linsvm, f1score[[1]])
+  tmp2recalinsvm = c(tmp2recalinsvm, f1score[[2]])
+  
+  
+  polysvm.model1 <-
+    svm(
+      x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                           FALSE],
+      y = oversampled_df$class,
+      kernel = "polynomial",
+      type = "C-classification"
+    )#, cost = 1800)
+  preds <-
+    predict(polysvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1ploy = c(tmp2f1ploy, f1score[[1]])
+  tmp2recaploy = c(tmp2recaploy, f1score[[2]])
+  
+  radsvm.model1 <-
+    svm(
+      x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                           FALSE],
+      y = oversampled_df$class,
+      kernel = "radial",
+      type = "C-classification"
+    )#, cost = 500,gamma = 0.009)
+  preds <-
+    predict(radsvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1radc = c(tmp2f1radc, f1score[[1]])
+  tmp2recaradc = c(tmp2recaradc, f1score[[2]])
+  
+  #LDA_df = data.frame(oversampled_df,class=oversampled_df$class)
+  
+  
+  lda.model <- MASS::lda(class ~ ., data = oversampled_df)
+  
+  preds = predict(lda.model, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))$class
+  
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1lda = c(tmp2f1lda, f1score[[1]])
+  tmp2recalda = c(tmp2recalda, f1score[[2]])
+  
+  multinomlogmodel <-
+    multinom(class ~ ., data = oversampled_df, trace = FALSE)
+  preds = predict(multinomlogmodel, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1log = c(tmp2f1log, f1score[[1]])
+  tmp2recalog = c(tmp2recalog, f1score[[2]])
+  
+}
+
+	
+#plot(kval,knn.sen,type="l",col="red",xlab="k values",   ylab="value", main="Sen and f1 for various k",ylim=range(range(knn.sen),range(knn.fone))) 
+#lines(kval,knn.fone, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#
+
+	#sen.val = c(log.sen,lda.sen,knn.sen,linsvm.sen,poly.sen,radSVM.sen)
+		fone.val = c(mean(tmp2f1log ),mean(tmp2f1lda),mean(tmp2f1knn),mean(tmp2f1linsvm),mean(tmp2f1ploy),mean(tmp2f1radc))
+	recall.val = c(mean(tmp2recalog ),mean(tmp2recalda),mean(tmp2recaknn),mean(tmp2recalinsvm),mean(tmp2recaploy),mean(tmp2recaradc))
+#	plot(seq(1:6),sen.val,type="l",col="red",xlab="Diff algo",   ylab="value", main="Sen and f1 for various classifiers",ylim=range(0.1,range(sen.val),range(fone.val))) 
+#	axis(2)
+#axis(1, at=seq_along(seq(1:6)),labels=c('a','b','c','a','b','c')) #, las=2
+#lines(seq(1:6),	fone.val, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#    lty = c(1, 1, 1), col = c("red", "green2"))
+plot_df95pca2 = data.frame(index= seq(1:6),fone=fone.val,recall=recall.val,algo= c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"))
+	ggplot(data=plot_df95pca2 ,aes(x=index,y=fone))+geom_line(data=plot_df95pca2 ,aes(x=index,y=fone,color="f1-score") ,size = 1)+geom_line(data=plot_df95pca2 ,aes(x=index,y=recall,color="recall") ,size = 1)+labs(title="F1-score various algo - 95% var - without correlated columns")+ scale_x_continuous(breaks =plot_df95pca2$index, labels=plot_df95pca2$algo) +scale_color_manual(values = c('f1-score' = 'blue',  'recall' = 'green'))
+	
+	
+	 
+boxplot_df_pca295= data.frame("Values"=c(tmp2recalog,tmp2recalda,tmp2recaknn,tmp2recalinsvm,tmp2recaploy,tmp2recaradc,tmp2f1log,tmp2f1lda,tmp2f1knn,tmp2f1linsvm,tmp2f1ploy,tmp2f1radc),"Classifiers"=rep(rep(c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"),each =10),times=2),"Metric"=rep(c("Macro Sensitivity","Macro f1-score"),each=60))
+ 
+ ggplot(data=boxplot_df_pca295, aes(x=Classifiers,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer Evaluation  - 95% var - without correlated columns") + facet_wrap(~Metric)
+	
+```
+
+```{r vieweval, fig.width=18, fig.height=6,include=FALSE}
+newdf = rbind(boxplot_df_pca95,boxplot_df_pca295)
+newdf$dataset = rep(c("PCA with correlated Columns","PCA without correlated columns"),each=120)
+
+ ggplot(data=newdf, aes(x=dataset,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer Evaluation") + facet_wrap(~Metric)
+```
+```{r variousmodelscomp2, fig.width=18, fig.height=6,include=FALSE}
+	ggplot(data=plot_df95pca2 ,aes(x=index,y=recall))+geom_line(data=plot_df95pca2 ,aes(x=index,y=recall,color="Sensitivity without correlated columns") ,size = 1)+geom_line(data=plot_df95pca2 ,aes(x=index,y=fone,color="f1-score without correlated columns") ,size = 1)+
+	geom_line(data=plot_df95pca ,aes(x=index,y=recall,color="Sensitivity with correlated columns") ,size = 1)+geom_line(data=plot_df95pca ,aes(x=index,y=fone,color="f1-score with correlated columns") ,size = 1)+
+	labs(title="Sensitivity and F1-score various classifiers")+ scale_x_continuous(breaks =plot_df95pca$index, labels=plot_df95pca$algo) +scale_color_manual(values = c(
+    'Sensitivity without correlated columns' = 'red',
+    'f1-score without correlated columns' = 'blue',
+	'Sensitivity with correlated columns' = 'green',
+    'f1-score with correlated columns' = 'purple'))
+```
+
+```{r variousfoldsf1, fig.width=12, fig.height=6,include=FALSE}
+sensitivity_90var_nocoldrop = subset(boxplot_df_pca295, Metric=="Macro f1-score")
+sensitivity_90var_nocoldrop$fold=rep(c(seq(1,10)),times=6)
+
+ggplot(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Multinomial Log') ,aes(x=fold,y=Values))+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Multinomial Log'),aes(x=fold,y=Values,color="Multinomial_Log") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='LDA'),aes(x=fold,y=Values,color="LDA") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='kNN'),aes(x=fold,y=Values,color="kNN") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Linear SVM'),aes(x=fold,y=Values,color="Linear_SVM") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Polynomial SVM'),aes(x=fold,y=Values,color="Polynomial_SVM") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Radial SVM'),aes(x=fold,y=Values,color="Radial_SVM") ,size = 1)+labs(title="f1-score across 10 folds - PCA without corelated columns")+ scale_x_continuous(breaks = seq(1,10))  +scale_color_manual(values = c(
+    'Multinomial_Log' = 'red',
+    'LDA' = 'blue',
+	    'kNN' = 'green',
+    'Linear_SVM' = 'purple',
+	    'Polynomial_SVM' = 'yellow',
+    'Radial_SVM' = 'orange'))
+	
+```
+
+```{r variousfoldssen, fig.width=12, fig.height=6,include=FALSE}
+sensitivity_90var_nocoldrop = subset(boxplot_df_pca295, Metric=="Macro Sensitivity")
+sensitivity_90var_nocoldrop$fold=rep(c(seq(1,10)),times=6)
+
+ggplot(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Multinomial Log') ,aes(x=fold,y=Values))+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Multinomial Log'),aes(x=fold,y=Values,color="Multinomial_Log") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='LDA'),aes(x=fold,y=Values,color="LDA") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='kNN'),aes(x=fold,y=Values,color="kNN") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Linear SVM'),aes(x=fold,y=Values,color="Linear_SVM") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Polynomial SVM'),aes(x=fold,y=Values,color="Polynomial_SVM") ,size = 1)+
+geom_line(data=subset(sensitivity_90var_nocoldrop, Classifiers=='Radial SVM'),aes(x=fold,y=Values,color="Radial_SVM") ,size = 1)+labs(title="Sensitivity across 10 folds - PCA without corelated columns")+ scale_x_continuous(breaks = seq(1,10))  +scale_color_manual(values = c(
+    'Multinomial_Log' = 'red',
+    'LDA' = 'blue',
+	    'kNN' = 'green',
+    'Linear_SVM' = 'purple',
+	    'Polynomial_SVM' = 'yellow',
+    'Radial_SVM' = 'orange'))
+	
+```
+
+```{r knn-hyperparameter,eval=FALSE,include=FALSE}
+
+
+# create cross validation folds
+library(caret)
+library(mlbench)
+library(caret)
+library(MASS)
+library(class)
+library(pROC)
+set.seed(1)
+fold <- createFolds(arrhythmia_labels, k=10)
+# apply 10-fold cross-validation
+
+
+knn.sen = knn.fone = c()
+knn.fnr.k = c()
+#knn.fone 
+kval = 1:20#1:20
+for(k in kval)
+{
+  knn.TP <- knn.TN <- knn.FP <- knn.FN <- c()
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+f1scores = c()
+sens_Scores = c()
+for(i in 1:length(fold)){
+  
+  
+    arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+pctouse = min(which(cum_var.explained > 95))
+
+
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+
+
+
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+#labels_factor<-as.factor(subset(processed_arrhythmia_df,class == 2 | class == 1)$class)
+# (processed_arrhythmia_df,class == 2 | class == 1)
+
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+
+#oversampled_df$class[oversampled_df$class > 13] = (oversampled_df$class - 3)
+
+#oversampled_df_forplot = oversampled_df
+#oversampled_df$class = as.factor(oversampled_df$class)
+
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+
+
+  
+#arrhythmia.pcatest <- prcomp(processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+
+arrhythmia.pcatest = predict(arrhythmia.pca, processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+
+  
+ preds <- knn(oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], data.frame(arrhythmia.pcatest[,1:pctouse]), oversampled_df$class, k=k)
+  
+
+   # knn.TP <- c(knn.TP, sum((arrhythmia_labels[fold[[i]]] == preds)[preds != 1]))
+  #  knn.TN <- c(knn.TN, sum((arrhythmia_labels[fold[[i]]] == preds)[preds == 1]))
+   # knn.FP <- c(knn.FP, sum((arrhythmia_labels[fold[[i]]] != preds)[preds != 1]))
+  #  knn.FN <- c(knn.FN, sum((arrhythmia_labels[fold[[i]]] != preds)[preds == 1]))
+#f1score <- f1_score(preds, oversampled_df$class[fold[[i]]] )
+    
+    f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+  #print(f1score)
+  f1scores = c(f1scores,f1score[[1]])
+  
+    # tmpf1log= c(tmpf1log,f1score[[1]])
+    sens_Scores = c(sens_Scores,f1score[[2]])
+   
+}
+#print(k)
+#x = evaluate(knn.TN, knn.FP, knn.TP, knn.FN)
+#knn.sen = c(knn.sen,x[1])
+knn.fone = c(knn.fone,mean(f1scores))
+knn.sen = c(knn.sen,mean(sens_Scores))
+#    knn.fnr.k <- c(knn.fnr.k, sum(knn.FN)/(sum(knn.TP) + sum(knn.FN))) 
+#print("-----------------------")
+}
+
+plot(kval,knn.fone ,type="l",col="red",xlab="k values",   ylab="value", main="Sen and f1 for various k",ylim=range(range(knn.sen),range(knn.fone)))
+lines(kval,knn.sen, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#      lty = c(1, 1, 1), col = c("red", "green2"))
+
+
+knn.plot.dat <- data.frame(values = c(unlist(knn.fone),unlist(knn.sen)),
+                              metric = rep(c("F1","Sensitivity"),each=length(kval)),
+                               k = factor(rep(kval, times=2)))
+    
+    ggplot(knn.plot.dat) + geom_point(aes(x = k, y = values, fill= metric)) + facet_wrap(~metric)
+    
+ #     plot(x = kval, y = knn.fnr.k, type = "b", xlab = "k values", ylab="Ratio", main="False Negatives")
+
+```
+
+
+
+
+
+
+
+```{r polysvm-hyperparameter,eval=FALSE,include=FALSE}
+
+
+# create cross validation folds
+library(caret)
+library(mlbench)
+library(caret)
+library(MASS)
+library(class)
+library(pROC)
+set.seed(1)
+fold <- createFolds(arrhythmia_labels, k=10)
+# apply 10-fold cross-validation
+
+
+knn.sen = knn.fone = c()
+knn.fnr.k = c()
+#knn.fone 
+costval =  seq(1,10,0.5)
+for(cost in costval)
+{
+  knn.TP <- knn.TN <- knn.FP <- knn.FN <- c()
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+f1scores = c()
+sens_Scores = c()
+for(i in 1:length(fold)){
+  
+  
+    arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+pctouse = min(which(cum_var.explained > 95))
+
+
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+
+
+
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+#labels_factor<-as.factor(subset(processed_arrhythmia_df,class == 2 | class == 1)$class)
+# (processed_arrhythmia_df,class == 2 | class == 1)
+
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+
+
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+
+}
+
+#oversampled_df$class[oversampled_df$class > 13] = (oversampled_df$class - 3)
+
+#oversampled_df_forplot = oversampled_df
+#oversampled_df$class = as.factor(oversampled_df$class)
+
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+
+
+  
+#arrhythmia.pcatest <- prcomp(processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+ arrhythmia.pcatest = predict(arrhythmia.pca,processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]) 
+
+  
+    svm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "polynomial", type = "C-classification", cost = cost)
+    preds <- predict(svm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]) )
+
+   # knn.TP <- c(knn.TP, sum((arrhythmia_labels[fold[[i]]] == preds)[preds != 1]))
+  #  knn.TN <- c(knn.TN, sum((arrhythmia_labels[fold[[i]]] == preds)[preds == 1]))
+   # knn.FP <- c(knn.FP, sum((arrhythmia_labels[fold[[i]]] != preds)[preds != 1]))
+  #  knn.FN <- c(knn.FN, sum((arrhythmia_labels[fold[[i]]] != preds)[preds == 1]))
+#f1score <- f1_score(preds, oversampled_df$class[fold[[i]]] )
+    
+    f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+  #print(f1score)
+  f1scores = c(f1scores,f1score[[1]])
+  
+    # tmpf1log= c(tmpf1log,f1score[[1]])
+    sens_Scores = c(sens_Scores,f1score[[2]])
+   
+}
+#print(k)
+#x = evaluate(knn.TN, knn.FP, knn.TP, knn.FN)
+#knn.sen = c(knn.sen,x[1])
+knn.fone = c(knn.fone,mean(f1scores))
+knn.sen = c(knn.sen,mean(sens_Scores))
+#    knn.fnr.k <- c(knn.fnr.k, sum(knn.FN)/(sum(knn.TP) + sum(knn.FN))) 
+#print("-----------------------")
+}
+
+plot(costval,knn.fone ,type="l",col="red",xlab="k values",   ylab="value", main="Sen and f1 for various k",ylim=range(range(knn.sen),range(knn.fone))) 
+lines(costval,knn.sen, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#      lty = c(1, 1, 1), col = c("red", "green2"))
+
+
+knn.plot.dat <- data.frame(values = c(unlist(knn.fone),unlist(knn.sen)),
+                              metric = rep(c("F1","Sensitivity"),each=length(costval)),
+                               k = factor(rep(costval, times=2)))
+    
+    ggplot(knn.plot.dat) + geom_point(aes(x = k, y = values, fill= metric)) + facet_wrap(~metric)
+    
+ #     plot(x = kval, y = knn.fnr.k, type = "b", xlab = "k values", ylab="Ratio", main="False Negatives")
+
+```
+
+
+
+
+
+```{r pca2optim,include=FALSE}
+
+
+# create cross validation folds
+library(caret)
+library(mlbench)
+library(caret)
+library(MASS)
+library(class)
+library(pROC)
+library(e1071)
+library(nnet)
+library(ROSE)
+
+set.seed(1)
+
+#LDA_df = data.frame(arrhythmia.pca$x[,1:29],class=oversampled_df$class)
+
+
+fold <- createFolds(arrhythmia_labels, k=10)
+# apply 10-fold cross-validation
+knn.TP <- knn.TN <- knn.FP <- knn.FN <- c()
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+linsvm.TP <- linsvm.TN <- linsvm.FP <- linsvm.FN <- c()
+
+linsvm.sen = linsvm.fone = c()
+knn.sen = knn.fone = c()
+
+    
+	poly.TP <- poly.TN <- poly.FP <- poly.FN <- c()
+	
+	poly.sen = poly.fone = c()
+	
+	    
+	radSVM.TP <- radSVM.TN <- radSVM.FP <- radSVM.FN <- c()
+	
+	radSVM.sen = radSVM.fone = c()
+	
+	    
+	lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+	
+	lda.sen = lda.fone = c()
+	
+		log.TP <- log.TN <- log.FP <- log.FN <- c()
+	
+	log.sen = log.fone = c()
+	
+	tmp3f1knn =tmp3f1linsvm = tmp3f1ploy = tmp3f1radc = tmp3f1lda = tmp3f1log = c()
+		tmp3recaknn =tmp3recalinsvm = tmp3recaploy = tmp3recaradc = tmp3recalda = tmp3recalog = c()
+
+for(i in 1:length(fold)){
+    # apply knn for classification
+  
+  arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+pctouse = min(which(cum_var.explained > 95))
+
+
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+
+
+
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+#labels_factor<-as.factor(subset(processed_arrhythmia_df,class == 2 | class == 1)$class)
+# (processed_arrhythmia_df,class == 2 | class == 1)
+
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+
+#oversampled_df$class[oversampled_df$class > 13] = (oversampled_df$class - 3)
+
+#oversampled_df_forplot = oversampled_df
+#oversampled_df$class = as.factor(oversampled_df$class)
+
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+
+
+  
+#arrhythmia.pcatest <- prcomp(processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+ arrhythmia.pcatest = predict(arrhythmia.pca,processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]) 
+  
+  
+    preds <- knn(oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], data.frame(arrhythmia.pcatest[,1:pctouse]), oversampled_df$class, k=1)
+    
+    
+    f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+
+      tmp3f1knn = c(tmp3f1knn,f1score[[1]])
+tmp3recaknn = c(tmp3recaknn,f1score[[2]])
+
+linsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "linear", type = "C-classification", cost = 2.8)
+    preds <- predict(linsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+    
+    f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+
+    tmp3f1linsvm = c(tmp3f1linsvm,f1score[[1]])
+    tmp3recalinsvm = c(tmp3recalinsvm,f1score[[2]])
+      
+    
+       polysvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "polynomial", type = "C-classification", cost = 9)
+    preds <- predict(polysvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+     f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+    tmp3f1ploy = c(tmp3f1ploy,f1score[[1]])
+    tmp3recaploy = c(tmp3recaploy,f1score[[2]])
+    
+    radsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification", cost = 100,gamma = 0.003)
+preds <- predict(radsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+
+ f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+    tmp3f1radc = c(tmp3f1radc,f1score[[1]])
+    tmp3recaradc = c(tmp3recaradc,f1score[[2]])
+    
+    #LDA_df = data.frame(oversampled_df,class=oversampled_df$class)
+    
+
+    lda.model <- MASS::lda(class ~ ., data = oversampled_df)
+    
+   preds = predict(lda.model, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))$class
+   
+   f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+    tmp3f1lda= c(tmp3f1lda,f1score[[1]])
+    tmp3recalda = c(tmp3recalda,f1score[[2]])
+   
+        multinomlogmodel <- multinom(class ~ ., data = oversampled_df,trace=FALSE)
+   preds = predict(multinomlogmodel, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+   	   f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+    tmp3f1log= c(tmp3f1log,f1score[[1]])
+    tmp3recalog = c(tmp3recalog,f1score[[2]])
+    
+}
+
+	
+#plot(kval,knn.sen,type="l",col="red",xlab="k values",   ylab="value", main="Sen and f1 for various k",ylim=range(range(knn.sen),range(knn.fone))) 
+#lines(kval,knn.fone, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#
+
+	#sen.val = c(log.sen,lda.sen,knn.sen,linsvm.sen,poly.sen,radSVM.sen)
+		fone.val = c(mean(tmp3f1log ),mean(tmp3f1lda),mean(tmp3f1knn),mean(tmp3f1linsvm),mean(tmp3f1ploy),mean(tmp3f1radc))
+	recall.val = c(mean(tmp3recalog ),mean(tmp3recalda),mean(tmp3recaknn),mean(tmp3recalinsvm),mean(tmp3recaploy),mean(tmp3recaradc))
+#	plot(seq(1:6),sen.val,type="l",col="red",xlab="Diff algo",   ylab="value", main="Sen and f1 for various classifiers",ylim=range(0.1,range(sen.val),range(fone.val))) 
+#	axis(2)
+#axis(1, at=seq_along(seq(1:6)),labels=c('a','b','c','a','b','c')) #, las=2
+#lines(seq(1:6),	fone.val, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#    lty = c(1, 1, 1), col = c("red", "green2"))
+plot_df95pca2hyp = data.frame(index= seq(1:6),fone=fone.val,recall=recall.val,algo= c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"))
+	ggplot(data=plot_df95pca2hyp ,aes(x=index,y=fone))+geom_line(data=plot_df95pca2hyp ,aes(x=index,y=fone,color="f1-score") ,size = 1)+geom_line(data=plot_df95pca2hyp ,aes(x=index,y=recall,color="recall") ,size = 1)+labs(title="F1-score various algo - 95% var - without correlated columns")+ scale_x_continuous(breaks =plot_df95pca2hyp$index, labels=plot_df95pca2hyp$algo) +scale_color_manual(values = c('f1-score' = 'blue',  'recall' = 'green'))
+	
+	
+	 
+boxplot_df_pca295hyp= data.frame("Values"=c(tmp3recalog,tmp3recalda,tmp3recaknn,tmp3recalinsvm,tmp3recaploy,tmp3recaradc,tmp3f1log,tmp3f1lda,tmp3f1knn,tmp3f1linsvm,tmp3f1ploy,tmp3f1radc),"Classifiers"=rep(rep(c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"),each =10),times=2),"Metric"=rep(c("Sensitivity","f1-score"),each=60))
+ 
+ ggplot(data=boxplot_df_pca295hyp, aes(x=Classifiers,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer Evaluation  - 95% var - without correlated columns - optimized") + facet_wrap(~Metric)
+	
+```
+
+```{r vieweval2, fig.width=18, fig.height=6,include=FALSE}
+newdf = rbind(boxplot_df_pca95,boxplot_df_pca295,boxplot_df_pca295hyp)
+newdf$dataset = rep(c("PCA with correlated Columns","PCA without correlated columns","Optimized PCA without correlated columns"),each=120)
+
+ ggplot(data=newdf, aes(x=dataset,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer Evaluation") + facet_wrap(~Metric)
+```
+
+
+
+
+```{r subset,include=FALSE}
+
+
+# create cross validation folds
+library(caret)
+library(mlbench)
+library(caret)
+library(MASS)
+library(class)
+library(pROC)
+library(e1071)
+library(nnet)
+library(ROSE)
+
+set.seed(1)
+
+#LDA_df = data.frame(arrhythmia.pca$x[,1:29],class=oversampled_df$class)
+
+
+
+fold <- createFolds(arrhythmia_labels, k = 10)
+# apply 10-fold cross-validation
+knn.TP <- knn.TN <- knn.FP <- knn.FN <- c()
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+linsvm.TP <- linsvm.TN <- linsvm.FP <- linsvm.FN <- c()
+
+linsvm.sen = linsvm.fone = c()
+knn.sen = knn.fone = c()
+
+
+poly.TP <- poly.TN <- poly.FP <- poly.FN <- c()
+
+poly.sen = poly.fone = c()
+
+
+radSVM.TP <- radSVM.TN <- radSVM.FP <- radSVM.FN <- c()
+
+radSVM.sen = radSVM.fone = c()
+
+
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+
+lda.sen = lda.fone = c()
+
+log.TP <- log.TN <- log.FP <- log.FN <- c()
+
+log.sen = log.fone = c()
+
+tmp4f1knn = tmp4f1linsvm = tmp4f1ploy = tmp4f1radc = tmp4f1lda = tmp4f1log = c()
+tmp4recaknn = tmp4recalinsvm = tmp4recaploy = tmp4recaradc = tmp4recalda = tmp4recalog = c()
+
+for (i in 1:length(fold)) {
+  # apply knn for classification
+  
+  
+  
+  
+  oversampled_df = processed_arrhythmia_df_nolabels[-fold[[i]], ]
+  oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+  
+  all_exis_classes  = sort(unique(arrhythmia_labels))
+  
+  
+  
+  for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+  {
+    #labels_factor<-as.factor(subset(processed_arrhythmia_df,class == 2 | class == 1)$class)
+    # (processed_arrhythmia_df,class == 2 | class == 1)
+    
+    balanceddata <-
+      ovun.sample(
+        class ~ .,
+        data = subset(oversampled_df, class == eachminroclass |
+                        class == 1),
+        method = "over",
+        p = 0.5
+      )$data
+    
+    oversampled_df = rbind(subset(balanceddata, class != 1),
+                           subset(oversampled_df, class != eachminroclass))
+  }
+  
+  
+  oversampled_df <-
+    oversampled_df[sample(nrow(oversampled_df)), ]  #Shuffling rows
+  
+  knnfeatures = c(
+    "V305",
+    "V409",
+    "AVR11",
+    "AVL09",
+    "V103",
+    "AVF215",
+    "DIII09",
+    "V608",
+    "S_Prime_Wave",
+    "AVR08",
+    "V310",
+    "Rag_T_Nom",
+    "V6274",
+    "V203",
+    "V511",
+    "V2230",
+    "AVL201",
+    "AVL202",
+    "V500",
+    "DII171",
+    "AVF03",
+    "AVL04",
+    "P_Wave",
+    "DIII184",
+    "V109",
+    "DII177",
+    "AVF217",
+    "AVR191",
+    "AVR196",
+    "Amp_Q_Wave",
+    "JJ_Wave",
+    "V5266",
+    "V111"
+  )
+  
+  preds <-
+    knn(oversampled_df[, knnfeatures, drop = FALSE],
+        processed_arrhythmia_df_nolabels[fold[[i]], knnfeatures] ,
+        oversampled_df$class)
+  
+  
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  
+  tmp4f1knn = c(tmp4f1knn, f1score[[1]])
+  tmp4recaknn = c(tmp4recaknn, f1score[[2]])
+  
+  linsvmfeatures = c("V309", "DIII11")
+  
+  linsvm.model1 <-
+    svm(
+      x = oversampled_df[, linsvmfeatures, drop = FALSE],
+      y = oversampled_df$class,
+      kernel = "linear",
+      type = "C-classification"
+    )
+  preds <-
+    predict(linsvm.model1, newdata = processed_arrhythmia_df_nolabels[fold[[i]], linsvmfeatures])
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1linsvm = c(tmp4f1linsvm, f1score[[1]])
+  tmp4recalinsvm = c(tmp4recalinsvm, f1score[[2]])
+  
+  
+  polysvmfeatures = 	 c("V107")
+  polysvm.model1 <-
+    svm(
+      x = oversampled_df[, polysvmfeatures, drop = FALSE],
+      y = oversampled_df$class,
+      kernel = "polynomial",
+      type = "C-classification"
+    )
+  preds <-
+    predict(polysvm.model1, newdata = processed_arrhythmia_df_nolabels[fold[[i]], polysvmfeatures, drop =
+                                                                         FALSE])
+  
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1ploy = c(tmp4f1ploy, f1score[[1]])
+  tmp4recaploy = c(tmp4recaploy, f1score[[2]])
+  
+  radsvmfeatures = c("V309", "DIII11")
+  radsvm.model1 <-
+    svm(
+      x = oversampled_df[, radsvmfeatures, drop = FALSE],
+      y = oversampled_df$class,
+      kernel = "radial",
+      type = "C-classification"
+    )
+  preds <-
+    predict(radsvm.model1, newdata = processed_arrhythmia_df_nolabels[fold[[i]], radsvmfeatures])
+  
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1radc = c(tmp4f1radc, f1score[[1]])
+  tmp4recaradc = c(tmp4recaradc, f1score[[2]])
+  
+  #LDA_df = data.frame(oversampled_df,class=oversampled_df$class)
+  
+  ldafeatures = c("V103")
+  ldafeatures_withclass = c("V103", "class")
+  lda.model <-
+    MASS::lda(class ~ ., data = oversampled_df[, ldafeatures_withclass, drop =
+                                                 FALSE])
+  
+  preds = predict(lda.model, newdata = processed_arrhythmia_df_nolabels[fold[[i]], ldafeatures, drop =
+                                                                          FALSE])$class
+  
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1lda = c(tmp4f1lda, f1score[[1]])
+  tmp4recalda = c(tmp4recalda, f1score[[2]])
+  
+  
+  multilogfeatures = c("V107", "V203")
+  multilogfeatures_with_class = c("V107", "V203", "class")
+  multinomlogmodel <-
+    multinom(class ~ ., data = oversampled_df[, multilogfeatures_with_class, drop =
+                                                FALSE], trace = FALSE)
+  preds = predict(multinomlogmodel, newdata = processed_arrhythmia_df_nolabels[fold[[i]], multilogfeatures])
+  f1score <-
+    calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp4f1log = c(tmp4f1log, f1score[[1]])
+  tmp4recalog = c(tmp4recalog, f1score[[2]])
+  
+}
+
+	
+#plot(kval,knn.sen,type="l",col="red",xlab="k values",   ylab="value", main="Sen and f1 for various k",ylim=range(range(knn.sen),range(knn.fone))) 
+#lines(kval,knn.fone, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#
+
+	#sen.val = c(log.sen,lda.sen,knn.sen,linsvm.sen,poly.sen,radSVM.sen)
+		fone.val = c(mean(tmp4f1log ),mean(tmp4f1lda),mean(tmp4f1knn),mean(tmp4f1linsvm),mean(tmp4f1ploy),mean(tmp4f1radc))
+	recall.val = c(mean(tmp4recalog ),mean(tmp4recalda),mean(tmp4recaknn),mean(tmp4recalinsvm),mean(tmp4recaploy),mean(tmp4recaradc))
+#	plot(seq(1:6),sen.val,type="l",col="red",xlab="Diff algo",   ylab="value", main="Sen and f1 for various classifiers",ylim=range(0.1,range(sen.val),range(fone.val))) 
+#	axis(2)
+#axis(1, at=seq_along(seq(1:6)),labels=c('a','b','c','a','b','c')) #, las=2
+#lines(seq(1:6),	fone.val, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#    lty = c(1, 1, 1), col = c("red", "green2")) plot_df95pca2hyp
+plot_dfsubset = data.frame(index= seq(1:6),fone=fone.val,recall=recall.val,algo= c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"))
+	ggplot(data=plot_dfsubset ,aes(x=index,y=fone))+geom_line(data=plot_dfsubset ,aes(x=index,y=fone,color="f1-score") ,size = 1)+geom_line(data=plot_dfsubset ,aes(x=index,y=recall,color="recall") ,size = 1)+labs(title="F1-score various algo - 95% var - without correlated columns")+ scale_x_continuous(breaks =plot_dfsubset$index, labels=plot_dfsubset$algo) +scale_color_manual(values = c('f1-score' = 'blue',  'recall' = 'green'))
+	
+	
+	 
+boxplot_df_subset= data.frame("Values"=c(tmp4recalog,tmp4recalda,tmp4recaknn,tmp4recalinsvm,tmp4recaploy,tmp4recaradc,tmp4f1log,tmp4f1lda,tmp4f1knn,tmp4f1linsvm,tmp4f1ploy,tmp4f1radc),"Classifiers"=rep(rep(c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"),each =10),times=2),"Metric"=rep(c("Macro Sensitivity","Macro f1-score"),each=60))
+ 
+ ggplot(data=boxplot_df_subset, aes(x=Classifiers,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer Evaluation  - Feature Subset") + facet_wrap(~Metric)
+	
+```
+
+```{r vieweval3, fig.width=18, fig.height=6,include=FALSE}
+newdf = rbind(boxplot_df_pca95,boxplot_df_pca295,boxplot_df_pca295hyp,boxplot_df_subset)
+newdf$dataset = rep(c("PCA with correlated Columns","PCA without correlated columns","Optimized PCA without correlated columns","Feature Subset"),each=120)
+
+ ggplot(data=newdf, aes(x=dataset,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer Evaluation") + facet_wrap(~Metric)
+```
+
+```{r vieweval4, fig.width=16, fig.height=5,echo=FALSE}
+newdf = rbind(boxplot_df_pca95,boxplot_df_pca295,boxplot_df_subset)
+newdf$dataset = rep(c("PCA including correlated features","PCA excluding correlated features","Feature Subset"),each=120)
+
+ ggplot(data=newdf, aes(x=dataset,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer comparison across different approaches") + facet_wrap(~Metric)
+```
+
+This boxplot shows the variability of performance i.e. macro weighted f1 score (left) and macro sensitivity (right) across various folds for different classifiers for the 3 approaches. In general feature subset does not seem like a good option for this dataset due it it's huge variability across the folds. Performing PCA is giving better performance and less variability across folds for all classifiers. PCA performed after removing correlated features seems to be having less variability across various folds of data. kNN and multinomial log seems to be doing well with feature subsetting. Let us examine average of macro f1-scores. The code for this is in the appendix.
+
+
+```{r variousmodelscomp4, fig.width=12, fig.height=4,echo=FALSE}
+
+ggplot(data=plot_df95pca2 ,aes(x=index,y=fone))+geom_line(data=plot_df95pca2 ,aes(x=index,y=fone,color="PCA excluding correlated features") ,size = 1)+geom_line(data=plot_df95pca ,aes(x=index,y=fone,color="PCA including correlated features") ,size = 1)+geom_line(data=plot_dfsubset ,aes(x=index,y=fone,color="Feature subset") ,size = 1)+ 	labs(title="macro f1-score across different approaches", x ="Classifiers", y = "Macro f1-score")+ scale_x_continuous(breaks =plot_df95pca$index, labels=plot_df95pca$algo) +scale_color_manual(name = "Legend",values = c(    'Feature subset' = 'green3','PCA excluding correlated features' = 'blue','PCA including correlated features' = 'orange'))
+```
+
+The above plot shows average of macro f1-score across all folds for various approached and classifiers. The average of macro f1-score over PCA including and excluding correlated features are almost similar but as per the previous plot the variability is less over PCA excluding correlated features. Hence we will not consider classification performed on PCA including correlated features. kNN and multinomial log have better performance when performed on subset of features than performed over principal components but the variation across various folds is large and also they are not better than Linear SVM and Radial SVM performed over principal components and hence we will also not consider results of feature subset. Linear SVM, Radial SVM classifiers performed on principal components excluding correlated features seems to be performing better with a macro f1-score of 0.59, 0.62. We will now optimize hyper parameters i.e. cost for linear SVM, cost and gamma for radial SVM.
+
+### **Hyperparameter optimization**
+
+We will perform steps for optimizing hyper parameters.
+
+1. Split the dataset without correlated features into 10 folds.
+2. For every fold, consider one fold as a validation data set and the remaining as training data set.
+3. Perform PCA on the training data set.
+4. Identify minimum number of principal components i.e. 'p' to explain 95% variability, in most cases it is 39.
+5. Oversample 'p' principal components to balance classes.
+6. Perform Linear SVM with a cost of 1 on the 'p' principal components of training data.
+7. Apply training PCA on the validation data set.
+8. Select 'p' principal components of the validation data set.
+9. Calculate macro f1-score on the validation data set principal components.
+10. Repeat from step 2 for all the folds.
+11. Average macro weighted f1-score of all folds to achieve one macro weighted f1 for each cost value.
+12. Repeat from step 6 to step 11 for various values of cost i.e. 1,1.5,2 until 10.
+13. Identify the best cost value for which macro f1-score is high.
+
+The below is the code for linear SVM hyper parameter optimization.
+```{r linsvm-hyperparameter, fig.width=12, fig.height=4,eval=FALSE,warning=FALSE}
+fold <- createFolds(arrhythmia_labels, k=10) # apply 10-fold cross-validation
+costval = seq(1,10,0.2) #Values of cost to be tested
+for(cost in costval)
+{
+f1scores = c()
+sens_Scores = c()
+for(i in 1:length(fold)){
+#Apply PCA on training dat
+arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+#Identify number of PCs to be used for 95% variability
+pctouse = min(which(cum_var.explained > 95))
+
+#Oversample minor classes
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+
+#apply PCA on test data
+arrhythmia.pcatest = predict(arrhythmia.pca,processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+  
+svm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "linear", type = "C-classification", cost = cost)
+preds <- predict(svm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]) )
+
+f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]]) #Calculate f1-score and recall on validation data
+f1scores = c(f1scores,f1score[[1]])
+}
+knn.fone = c(knn.fone,mean(f1scores))
+knn.sen = c(knn.sen,mean(sens_Scores))
+}
+
+#Store data for plotting
+lin.plot.dat <- data.frame(values = c(unlist(knn.fone),unlist(knn.sen)),metric = rep(c("Macro f1-score","Macro Sensitivity"),each=length(costval)),k = rep(costval, times=2))
+```
+
+```{r linsvm-hyperparameterplot, fig.width=12, fig.height=4,echo=FALSE,warning=FALSE}
+ lin.plot.dat = readRDS( file = "lin.plot.data.rds")
+ lin.plot.dat = subset(lin.plot.dat,k <5.1)
+    ggplot(lin.plot.dat) + geom_line(aes(x = k, y = values, fill= metric))+ scale_x_continuous(breaks = lin.plot.dat$k)+ 	labs(title="macro f1-score and macro sensitivty for different cost values - Linear SVM", x ="Cost", y = "Value") + facet_wrap(~metric)
+
+```
+These plots indicate macro f1-score (left) and macro sensitivity (right) of validation dataset for Linear SVM performed on principal componets after excluding correalted features for various values of cost. Linear SVM seems to be performing better for cost = 3.2 as it has high macro f1-score and high macro sensitivity. The code for this is in appendix.
+
+We will perform similar steps for optimizing hyperparamters for radial SVM, but we will repeat the process for various values of cost i.e. 100, 200 to 1000 and gamma i.e. 0.001,0.002 to 0.01. The code for this is available in appendix.
+
+```{r radsvm-hyperparameter, fig.width=12, fig.height=4,eval=FALSE,include=FALSE}
+
+
+# create cross validation folds
+library(caret)
+library(mlbench)
+library(caret)
+library(MASS)
+library(class)
+library(pROC)
+set.seed(1)
+fold <- createFolds(arrhythmia_labels, k=10)
+# apply 10-fold cross-validation
+
+
+knn.sen = knn.fone = c()
+knn.fnr.k = c()
+#knn.fone 
+gamma_Values = seq(0.001,0.01,0.001)#c(0.001,0.01,0.1, 1, 10, 100)
+cost_values =  seq(100,1000,100) #seq(10)
+
+gamma_cost_values = cbind(rep(gamma_Values, times = length(cost_values)),rep(cost_values, each = length(gamma_Values)))
+
+
+for (idx in seq(nrow(gamma_cost_values)))
+{
+  knn.TP <- knn.TN <- knn.FP <- knn.FN <- c()
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+f1scores = c()
+sens_Scores = c()
+for(i in 1:length(fold)){
+  
+  
+    arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+pctouse = min(which(cum_var.explained > 95))
+
+
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+
+
+
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+#labels_factor<-as.factor(subset(processed_arrhythmia_df,class == 2 | class == 1)$class)
+# (processed_arrhythmia_df,class == 2 | class == 1)
+
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+
+#oversampled_df$class[oversampled_df$class > 13] = (oversampled_df$class - 3)
+
+#oversampled_df_forplot = oversampled_df
+#oversampled_df$class = as.factor(oversampled_df$class)
+
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+
+
+  
+#arrhythmia.pcatest <- prcomp(processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+  arrhythmia.pcatest = predict(arrhythmia.pca,processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])  
+
+  
+    svm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification", cost = gamma_cost_values[idx,2],gamma = gamma_cost_values[idx,1])
+    preds <- predict(svm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]) )
+
+   # knn.TP <- c(knn.TP, sum((arrhythmia_labels[fold[[i]]] == preds)[preds != 1]))
+  #  knn.TN <- c(knn.TN, sum((arrhythmia_labels[fold[[i]]] == preds)[preds == 1]))
+   # knn.FP <- c(knn.FP, sum((arrhythmia_labels[fold[[i]]] != preds)[preds != 1]))
+  #  knn.FN <- c(knn.FN, sum((arrhythmia_labels[fold[[i]]] != preds)[preds == 1]))
+#f1score <- f1_score(preds, oversampled_df$class[fold[[i]]] )
+    
+    f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+  #print(f1score)
+  f1scores = c(f1scores,f1score[[1]])
+  
+    # tmpf1log= c(tmpf1log,f1score[[1]])
+    sens_Scores = c(sens_Scores,f1score[[2]])
+   
+}
+#print(k)
+#x = evaluate(knn.TN, knn.FP, knn.TP, knn.FN)
+#knn.sen = c(knn.sen,x[1])
+print("---------")
+print(gamma_cost_values[idx,2])
+print(gamma_cost_values[idx,1])
+print(mean(f1scores))
+knn.fone = c(knn.fone,mean(f1scores))
+knn.sen = c(knn.sen,mean(sens_Scores))
+#    knn.fnr.k <- c(knn.fnr.k, sum(knn.FN)/(sum(knn.TP) + sum(knn.FN))) 
+#print("-----------------------")
+}
+
+#plot(seq(nrow(gamma_cost_values)),knn.fone ,type="l",col="red",xlab="k values",   ylab="value", main="Sen and f1 for various k",ylim=range(range(knn.sen),range(knn.fone))) 
+#lines(seq(nrow(gamma_cost_values)),knn.sen, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#      lty = c(1, 1, 1), col = c("red", "green2"))
+
+
+radvm.plot.dat <- data.frame(values = c(unlist(knn.fone),unlist(knn.sen)),metric = rep(c("Macro f1-score","Macro sensitivity"),each=length(seq(nrow(gamma_cost_values)))),gamma = rep(gamma_cost_values[,1], times=2),   cost = rep(gamma_cost_values[,2], times=2))
+
+saveRDS(radvm.plot.dat , file = "radsvmplotdata.rds")
+# Restore the object
+#readRDS(file = "my_data.rds"
+
+ggplot(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==100) ,aes(x=gamma,y=values))+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==100) ,aes(x=gamma,y=values,color="Cost = 100") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==200) ,aes(x=gamma,y=values,color="Cost = 200") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==300) ,aes(x=gamma,y=values,color="Cost = 300") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==400) ,aes(x=gamma,y=values,color="Cost = 400") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==500) ,aes(x=gamma,y=values,color="Cost = 500") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==600) ,aes(x=gamma,y=values,color="Cost = 600") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==700) ,aes(x=gamma,y=values,color="Cost = 700") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==800) ,aes(x=gamma,y=values,color="Cost = 800") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==900) ,aes(x=gamma,y=values,color="Cost = 900") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==1000) ,aes(x=gamma,y=values,color="Cost = 1000") ,size = 1)+labs(title="Macro f1-score for various cost and gamma")+ scale_x_continuous(breaks = radvm.plot.dat$gamma) +scale_color_discrete(name = "Legend")
+ 
+
+```
+
+
+
+```{r radsvm-hyperparameterplot, fig.width=12, fig.height=4,echo=FALSE}
+
+
+#saveRDS(radvm.plot.dat , file = "radsvmplotdata.rds")
+# Restore the object
+#readRDS(file = "my_data.rds"
+
+radvm.plot.dat <-readRDS(file =  "radsvmplotdata.rds")
+
+t1 = ggplot(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==100) ,aes(x=gamma,y=values))+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==100) ,aes(x=gamma,y=values,color="Cost = 100") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==800) ,aes(x=gamma,y=values,color="Cost = 800") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro f1-score" & cost ==900) ,aes(x=gamma,y=values,color="Cost = 900") ,size = 1)+labs(title="Macro f1-score for various cost and gamma - Radial SVM", x ="Gamma values", y = "Macro f1-score")+ scale_x_continuous(breaks = radvm.plot.dat$gamma) +scale_color_discrete(name = "Legend")
+t2 = ggplot(data=subset(radvm.plot.dat , metric=="Macro sensitivity" & cost ==100) ,aes(x=gamma,y=values))+geom_line(data=subset(radvm.plot.dat , metric=="Macro sensitivity" & cost ==100) ,aes(x=gamma,y=values,color="Cost = 100") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro sensitivity" & cost ==800) ,aes(x=gamma,y=values,color="Cost = 800") ,size = 1)+geom_line(data=subset(radvm.plot.dat , metric=="Macro sensitivity" & cost ==900) ,aes(x=gamma,y=values,color="Cost = 900") ,size = 1)+labs(title="Macro sensitivity for various cost and gamma - Radial SVM", x ="Gamma values", y = "Macro sensitivity")+ scale_x_continuous(breaks = radvm.plot.dat$gamma) +scale_color_discrete(name = "Legend")
+require(gridExtra)
+grid.arrange(t1, t2, ncol=2)
+```
+These plots indicate macro f1-score (left) and macro sensitivity (right) of validation dataset for radial SVM performed on principal componets after excluding correalted features for various values of cost and gamma. These plots are not the entire analysis but only a representation of required results. Radial SVM seems to be performing better for cost = 800 and gamma = 0.009. The code for this is available in appendix.
+
+
+We will now compare Linear SVM, Radial SVM with default hyperparamters and with optimized hyperparameters. The code for this is available in appendix.
+
+```{r pca2-comparison,echo=FALSE, fig.width=12, fig.height=4}
+
+
+# create cross validation folds
+library(caret)
+library(mlbench)
+library(caret)
+library(MASS)
+library(class)
+library(pROC)
+library(e1071)
+library(nnet)
+library(ROSE)
+
+set.seed(1)
+
+#LDA_df = data.frame(arrhythmia.pca$x[,1:29],class=oversampled_df$class)
+
+
+fold <- createFolds(arrhythmia_labels, k=10)
+# apply 10-fold cross-validation
+knn.TP <- knn.TN <- knn.FP <- knn.FN <- c()
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+linsvm.TP <- linsvm.TN <- linsvm.FP <- linsvm.FN <- c()
+
+linsvm.sen = linsvm.fone = c()
+
+
+linsvmop.TP <- linsvmop.TN <- linsvmop.FP <- linsvmop.FN <- c()
+
+linsvmop.sen = linsvmop.fone = c()
+
+knn.sen = knn.fone = c()
+
+    
+	poly.TP <- poly.TN <- poly.FP <- poly.FN <- c()
+	
+	poly.sen = poly.fone = c()
+	
+	    
+	radSVM.TP <- radSVM.TN <- radSVM.FP <- radSVM.FN <- c()
+	
+	radSVM.sen = radSVM.fone = c()
+	
+	radSVMop.TP <- radSVMop.TN <- radSVMop.FP <- radSVMop.FN <- c()
+	
+	radSVMop.sen = radSVMop.fone = c()
+	    
+	lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+	
+	lda.sen = lda.fone = c()
+	
+		log.TP <- log.TN <- log.FP <- log.FN <- c()
+	
+	log.sen = log.fone = c()
+	
+	tmp2f1knn =tmp2f1linsvm =tmp2f1linsvmop= tmp2f1ploy = tmp2f1radc =tmp2f1radcop= tmp2f1lda = tmp2f1log = c()
+		tmp2recaknn =tmp2recalinsvm =tmp2recalinsvmop= tmp2recaploy = tmp2recaradc =tmp2recaradcop= tmp2recalda = tmp2recalog = c()
+
+for(i in 1:length(fold)){
+    # apply knn for classification
+  
+  arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+pctouse = min(which(cum_var.explained > 95))
+
+
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+
+
+
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+#labels_factor<-as.factor(subset(processed_arrhythmia_df,class == 2 | class == 1)$class)
+# (processed_arrhythmia_df,class == 2 | class == 1)
+
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+
+#oversampled_df$class[oversampled_df$class > 13] = (oversampled_df$class - 3)
+
+#oversampled_df_forplot = oversampled_df
+#oversampled_df$class = as.factor(oversampled_df$class)
+
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+
+
+  
+#arrhythmia.pcatest <- prcomp(processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+ 
+  
+    arrhythmia.pcatest = predict(arrhythmia.pca,processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]) 
+
+linsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "linear", type = "C-classification")#, cost = 2.5)
+    preds <- predict(linsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+    
+    f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+
+    tmp2f1linsvm = c(tmp2f1linsvm,f1score[[1]])
+    tmp2recalinsvm = c(tmp2recalinsvm,f1score[[2]])
+      
+    
+    linsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "linear", type = "C-classification", cost = 3.2)
+    preds <- predict(linsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+    
+    f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+
+    tmp2f1linsvmop = c(tmp2f1linsvmop,f1score[[1]])
+    tmp2recalinsvmop = c(tmp2recalinsvmop,f1score[[2]])
+    
+    
+    
+     
+    
+    radsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification")#, cost = 500,gamma = 0.009)
+preds <- predict(radsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+
+ f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+    tmp2f1radc = c(tmp2f1radc,f1score[[1]])
+    tmp2recaradc = c(tmp2recaradc,f1score[[2]])
+    
+    
+        radsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification",cost = 800,gamma = 0.009)
+preds <- predict(radsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+
+    
+    
+    
+
+ f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+    tmp2f1radcop = c(tmp2f1radcop,f1score[[1]])
+    tmp2recaradcop = c(tmp2recaradcop,f1score[[2]])
+    #print(f1score[[1]])
+    
+    #LDA_df = data.frame(oversampled_df,class=oversampled_df$class)
+    
+
+    
+}
+
+	
+#plot(kval,knn.sen,type="l",col="red",xlab="k values",   ylab="value", main="Sen and f1 for various k",ylim=range(range(knn.sen),range(knn.fone))) 
+#lines(kval,knn.fone, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#
+
+	#sen.val = c(log.sen,lda.sen,knn.sen,linsvm.sen,poly.sen,radSVM.sen)
+		fone.val = c(mean(tmp2f1linsvm),mean(tmp2f1linsvmop),mean(tmp2f1radc),mean(tmp2f1radcop))
+	recall.val = c(mean(tmp2recalinsvm),mean(tmp2recalinsvmop),mean(tmp2recaradc),mean(tmp2recaradcop))
+#	plot(seq(1:6),sen.val,type="l",col="red",xlab="Diff algo",   ylab="value", main="Sen and f1 for various classifiers",ylim=range(0.1,range(sen.val),range(fone.val))) 
+#	axis(2)
+#axis(1, at=seq_along(seq(1:6)),labels=c('a','b','c','a','b','c')) #, las=2
+#lines(seq(1:6),	fone.val, col = "green2")
+#legend("topright",c("Sensitivity","f1"),
+#    lty = c(1, 1, 1), col = c("red", "green2"))
+plot_df95pca2opc = data.frame(index= seq(1:4),fone=fone.val,recall=recall.val,algo= c("Linear SVM","Linear SVM - Optimized","Radial SVM","Radial SVM - Optimized"))
+	
+ 
+	
+
+	 
+boxplot_df95pca2opc= data.frame("Values"=c(tmp2recalinsvm,tmp2recalinsvmop,tmp2recaradc,tmp2recaradcop,tmp2f1linsvm,tmp2f1linsvmop,tmp2f1radc,tmp2f1radcop),"Classifiers"=rep(rep(c("Linear SVM","Linear SVM - Optimized","Radial SVM","Radial SVM - Optimized"),each =10),times=2),"Metric"=rep(c("Macro Sensitivity","Macro f1-score"),each=40))
+ 
+ ggplot(data=boxplot_df95pca2opc, aes(x=Classifiers,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer comparions across various folds") + facet_wrap(~Metric)
+
+```
+
+The boxplot is a comparison macro f1, macro recall of Linear SVM, Linear SVM with optimized cost, Radial SVM and Radial sVM with optimized cost and gamma across various folds on validation dataset. It appears that Linear SVM with optimized cost and Radial SVM with default parameters have less variability across different fold of data and also have similar performance. The code for this is available in appendix.
+
+
+```{r pca2-comparison2,echo=FALSE, fig.width=10, fig.height=4}
+ggplot(data=plot_df95pca2opc ,aes(x=index,y=fone))+geom_line(data=plot_df95pca2opc ,aes(x=index,y=fone,color="Macro f1-score") ,size = 1)+geom_line(data=plot_df95pca2opc ,aes(x=index,y=recall,color="Macro recall") ,size = 1)+labs(title="Classifiers comparsion - averaged macro f1 and averaged macro recall", x ="Classifiers", y = "Values")+ scale_x_continuous(breaks =plot_df95pca2opc$index, labels=plot_df95pca2opc$algo) +scale_color_manual(values = c('Macro f1-score' = 'blue',  'Macro recall' = 'green3'))
+```
+
+The line graph is a comparison of average of macro f1 and macro recall over different folds of data and this indicates that Radial SVM with default parameters has a better average macro f1 and better average macro recall over others i.e. 0.61, 0.63. The code for this is available in appendix.
+
+
+```{r rocattempt,echo=FALSE, fig.width=12, fig.height=4,warning=FALSE,eval=FALSE,include=FALSE}
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(arrhythmia_labels, p = .6)[[1]]
+
+
+train <- processed_arrhythmia_df_nolabels[ inTrain,-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]
+test  <- processed_arrhythmia_df_nolabels[-inTrain,-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]
+cls.train <- arrhythmia_labels[inTrain]
+cls.test <- arrhythmia_labels[-inTrain]
+
+
+arrhythmia.pca <- prcomp(train)
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+pctouse = min(which(cum_var.explained > 95))
+
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = cls.train
+all_exis_classes  = sort(unique(arrhythmia_labels))
+
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+arrhythmia.pcatest = predict(arrhythmia.pca, test)
+
+radsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification")#, cost = 500,gamma = 0.009)
+preds <- predict(radsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+
+library(pROC)
+y_pred<-as.ordered(preds)
+auc <- multiclass.roc(cls.test, y_pred)
+print(auc(auc))
+```
+
+Multi-class area under the roc curve for radial SVM with default paramters on validation dataset is 0.7471. This indicates the model is good in distinguishing between classes but is not perfect.
+
+## **Conclusion**
+
+EDA suggested that the classes are not balanced, the dataset has high dimensions and 13 features are correlated. Further evaluation concluded that removing correlated feature, applying PCA, oversampling of minor classes and using radial SVM with default cost i.e. 1 and default gamma i.e. 0.02 provided better results and can be considered a reasonable approach. Dropping the correlated features resulted in less variability of performance across different folds of data. Feature subset did not help in improving the performance and also performing feature subset for polynomial SVM was computationally inefficient and required a lot of time and hence only a few iterations for polynomial SVM feature subset could be performed, perhaps performing feature subset for polynomial SVM in a high computation environment might yield some interesting results.
+
+The dataset also does not have samples for 3 of 16 classes and this is preventing our model to make more accurate predictions. The dataset should also include more samples for some classes so that our classifiers does not rely on oversampling techniques.
+
+This can be good starting point for us to use this approach to reduce false alerts in the clinical areas and assist clinical staff but this needs some more work i.e. more gold standard data, more computation efficient environment to explore other strategies.
+
+## **References**
+
+Arrhythmia Data Set at: http://archive.ics.uci.edu/ml/datasets/Arrhythmia
+
+Krzysztof, G 2019, Reducing False Arrhythmia Alarms at: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6479538/
+
+Christopher, G 2019, Handling Multi-Class Imbalance at: https://towardsdatascience.com/multi-class-imbalance-154ef2b15816
+
+
+## **Appendix**
+
+The below is the code for creating histogram of labels.
+```{r label distribution a, warning=FALSE, message=FALSE, fig.width=6, fig.height=2.6,eval=FALSE}
+library(ggplot2)
+ggplot(data = arrhythmia_df, aes(x = class)) +
+  geom_histogram(
+    data = subset(arrhythmia_df, class == 1),
+    fill = "forestgreen",
+    alpha = 0.8
+  ) +
+  geom_histogram(
+    data = subset(arrhythmia_df, class != 1),
+    fill = "firebrick",
+    alpha = 0.8
+  ) +
+  ggtitle("Frequency of labels") +
+  xlab("Class") + ylab("Count") +
+  geom_text(
+    stat = 'count',
+    mapping = aes(label = paste(round((..count..) / sum(..count..) * 100
+    ), "%", sep = "")),
+    position = position_stack(vjust = 1.05),
+    size = 4
+  ) +
+  scale_x_continuous(breaks = seq(0, max(arrhythmia_df$class), 1))  +
+  theme_classic() 
+```
+
+The below is the code for creating barplot of missing values.
+```{r datainspect a missing values, fig.width=3, fig.height=2,eval=FALSE}
+library(skimr)
+summary_df = skim(arrhythmia_df) #We will use for missing values
+missing_stats = data.frame(summary_df[summary_df$n_missing != 0, c("skim_variable", "n_missing")]) #Only fetch the missing values
+colnames(missing_stats) = c("column_name", "no_of_missing")
+missing_stats$percent_missing = paste(round(missing_stats$no_of_missing /
+                                              nrow(arrhythmia_df) * 100), "%") #Percenttage calculation
+library(ggplot2)
+ggplot(data = missing_stats, aes(x = column_name, y = no_of_missing)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  ggtitle("Missing observations") +
+  xlab("Column Names") + ylab("Missing observations") + ylim(c(0, nrow(arrhythmia_df))) +
+  geom_text(aes(label = percent_missing)) + theme_classic()
+```
+
+The below is the code for box plot of height and weight.
+
+```{r boxplots a, fig.width=8, fig.height=1.2,warning=FALSE,message=FALSE,eval=FALSE}
+require(gridExtra)
+plot1 = ggplot(data = arrhythmia_df_nolabels, aes(x = Height)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) +  ggtitle("Spread of Height")
+plot2 = ggplot(data = arrhythmia_df_nolabels, aes(x = Weight)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) +  ggtitle("Spread of Weight")
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+The below is the code for box plot of V101,V201 and V301.
+
+```{r boxplots1155a, fig.width=6, fig.height=1.5,eval=FALSE}
+#Side by side boxplot for similar features for better comparison
+Columns_for_boxplot = c("V101", "V201", "V301")
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot]))) #Creating dummy data frame for storing all 3 column values in one for boxplotting
+colnames(wfdur_df) = c("Vx01", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = Vx01)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) + ggtitle("Spread of V101,V201,V301") + xlab("Value") + theme(axis.text =
+                                                                    element_text(size = 14),
+                                                                  axis.title = element_text(size = 14))
+```
+
+The below is the code for box plot of DIII188 and DIII189.
+
+```{r boxplots1156a, fig.width=6, fig.height=1.5,eval=FALSE}
+Columns_for_boxplot = c("DIII188", "DIII189")  #Side by side boxplot for similar features for better comparison
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot]))) #Creating dummy data frame for storing all 2 column values in one for boxplotting
+colnames(wfdur_df) = c("DIII18x", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = DIII18x)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) + ggtitle("Spread of DIII188,DIII189") + xlab("Value") + theme(axis.text =
+                                                                     element_text(size = 14),
+                                                                   axis.title = element_text(size = 14))
+```
+
+
+The below is the code used for examining all remaining features.
+```{r boxplots1156ar, fig.width=6, fig.height=1.5,eval=FALSE}
+Columns_for_boxplot = c("Q_Wave", "R_Wave", "S_Wave")
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of width") + xlab("Milli seconds")
+#Can consider later
+Columns_for_boxplot = c("R'_Wave", "S'_Wave", "Int_Def", "Rag_R_Nom")
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of peaks after R") + xlab("Milli seconds")
+Columns_for_boxplot = c("Diph_R_Nom",
+                        "Rag_P_Nom",
+                        "Diph_P_Nom",
+                        "Rag_T_Nom",
+                        "Diph_T_Nom")
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of Norm") + xlab("Milli seconds")
+Columns_for_boxplot = c(
+  "DII00",
+  "DII01",
+  "DII02",
+  "DII03",
+  "DII04",
+  "DII05",
+  "DII06",
+  "DII07",
+  "DII08",
+  "DII09",
+  "DII10",
+  "DII11",
+  "DIII00",
+  "DIII01",
+  "DIII02",
+  "DIII03",
+  "DIII04",
+  "DIII05",
+  "DIII06",
+  "DIII07",
+  "DIII08",
+  "DIII09",
+  "DIII10",
+  "DIII11"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "DII00",
+  "DII01",
+  "DII02",
+  "DII03",
+  "DII04",
+  "DII05",
+  "DII06",
+  "DII07",
+  "DII08",
+  "DII09",
+  "DII10",
+  "DII11",
+  "DIII00",
+  "DIII01",
+  "DIII02",
+  "DIII03",
+  "DIII04",
+  "DIII05",
+  "DIII06",
+  "DIII07",
+  "DIII08",
+  "DIII09",
+  "DIII10",
+  "DIII11"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+Columns_for_boxplot = c(
+  "AVR00",
+  "AVR01",
+  "AVR02",
+  "AVR03",
+  "AVR04",
+  "AVR05",
+  "AVR06",
+  "AVR07",
+  "AVR08",
+  "AVR09",
+  "AVR10",
+  "AVR11",
+  "AVL00",
+  "AVL01",
+  "AVL02",
+  "AVL03",
+  "AVL04",
+  "AVL05",
+  "AVL06",
+  "AVL07",
+  "AVL08",
+  "AVL09",
+  "AVL10",
+  "AVL11"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "AVF00",
+  "AVF01",
+  "AVF02",
+  "AVF03",
+  "AVF04",
+  "AVF05",
+  "AVF06",
+  "AVF07",
+  "AVF08",
+  "AVF09",
+  "AVF10",
+  "AVF11"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip()
+Columns_for_boxplot = c(
+  "V100",
+  "V101",
+  "V102",
+  "V103",
+  "V104",
+  "V105",
+  "V106",
+  "V107",
+  "V108",
+  "V109",
+  "V110",
+  "V111",
+  "V200",
+  "V201",
+  "V202",
+  "V203",
+  "V204",
+  "V205",
+  "V206",
+  "V207",
+  "V208",
+  "V209",
+  "V210",
+  "V211"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of .............") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "V300",
+  "V301",
+  "V302",
+  "V303",
+  "V304",
+  "V305",
+  "V306",
+  "V307",
+  "V308",
+  "V309",
+  "V310",
+  "V311",
+  "V400",
+  "V401",
+  "V402",
+  "V403",
+  "V404",
+  "V405",
+  "V406",
+  "V407",
+  "V408",
+  "V409",
+  "V410",
+  "V411"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+Columns_for_boxplot = c("V101", "V201", "V301")
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot]))) #Creating dummy data frame for storing all 3 column values in one for boxplotting
+colnames(wfdur_df) = c("Vx01", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = Vx01)) +
+  geom_boxplot(
+    outlier.colour = "red",
+    outlier.shape = 16,
+    outlier.size = 2,
+    notch = FALSE
+  ) + ggtitle("Spread of V101,V201,V301") + xlab("Value") + theme(axis.text =
+                                                                    element_text(size = 14),
+                                                                  axis.title = element_text(size = 14))
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "V500",
+  "V501",
+  "V502",
+  "V503",
+  "V504",
+  "V505",
+  "V506",
+  "V507",
+  "V508",
+  "V509",
+  "V510",
+  "V511",
+  "V600",
+  "V601",
+  "V602",
+  "V603",
+  "V604",
+  "V605",
+  "V606",
+  "V607",
+  "V608",
+  "V609",
+  "V610",
+  "V611"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "JJ_Wave",
+  "Amp_Q_Wave",
+  "Amp_R_Wave",
+  "Amp_S_Wave",
+  "R_Prime_Wave",
+  "S_Prime_Wave",
+  "P_Wave",
+  "T_Wave"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "QRSA",
+  "QRSTA",
+  "DII170",
+  "DII171",
+  "DII172",
+  "DII173",
+  "DII174",
+  "DII175",
+  "DII176",
+  "DII177",
+  "DII178",
+  "DII179"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "DIII180",
+  "DIII181",
+  "DIII182",
+  "DIII183",
+  "DIII184",
+  "DIII185",
+  "DIII186",
+  "DIII187",
+  "DIII188",
+  "DIII189"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "AVR190",
+  "AVR191",
+  "AVR192",
+  "AVR193",
+  "AVR194",
+  "AVR195",
+  "AVR196",
+  "AVR197",
+  "AVR198",
+  "AVR199"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "AVL200",
+  "AVL201",
+  "AVL202",
+  "AVL203",
+  "AVL204",
+  "AVL205",
+  "AVL206",
+  "AVL207",
+  "AVL208",
+  "AVL209"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "AVF210",
+  "AVF211",
+  "AVF212",
+  "AVF213",
+  "AVF214",
+  "AVF215",
+  "AVF216",
+  "AVF217",
+  "AVF218",
+  "AVF219"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "V1220",
+  "V1221",
+  "V1222",
+  "V1223",
+  "V1224",
+  "V1225",
+  "V1226",
+  "V1227",
+  "V1228",
+  "V1229",
+  "V2230",
+  "V2231",
+  "V2232",
+  "V2233",
+  "V2234",
+  "V2235",
+  "V2236",
+  "V2237",
+  "V2238",
+  "V2239"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "V3240",
+  "V3241",
+  "V3242",
+  "V3243",
+  "V3244",
+  "V3245",
+  "V3246",
+  "V3247",
+  "V3248",
+  "V3249",
+  "V4250",
+  "V4251",
+  "V4252",
+  "V4253",
+  "V4254",
+  "V4255",
+  "V4256",
+  "V4257",
+  "V4258",
+  "V4259"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+Columns_for_boxplot = c(
+  "V5260",
+  "V5261",
+  "V5262",
+  "V5263",
+  "V5264",
+  "V5265",
+  "V5266",
+  "V5267",
+  "V5268",
+  "V5269",
+  "V6270",
+  "V6271",
+  "V6272",
+  "V6273",
+  "V6274",
+  "V6275",
+  "V6276",
+  "V6277",
+  "V6278",
+  "V6279"
+)
+wfdur_df = data.frame(rep(Columns_for_boxplot, times = nrow(arrhythmia_df)), as.vector(t(arrhythmia_df[, Columns_for_boxplot])))
+colnames(wfdur_df) = c("WaveForm", "Value")
+ggplot(data = wfdur_df, aes(x = Value, y = WaveForm)) +   geom_boxplot(
+  outlier.colour = "red",
+  outlier.shape = 16,
+  outlier.size = 2,
+  notch = FALSE
+) + ggtitle("Spread of DII08 and others") + xlab("Milli seconds") + coord_flip() +  theme(axis.text =
+                                                                                         element_text(size = 14),
+                                                                                       axis.title = element_text(size = 14))
+ ```
+ 
+The below is the code for visualizing continous correlated ECG features
+```{r ggpairvisa, eval=FALSE}
+#The belo function is to create a smooting line in the ggpairs plot
+regline_fn <- function(data, mapping, ...) {
+  p <- ggplot(data = data, mapping = mapping) + geom_point() +
+    geom_smooth(method = loess,
+                fill = "red",
+                color = "red",...) +
+    geom_smooth(method = lm,
+                fill = "blue",
+                color = "blue",...)
+  p
+}
+require(gridExtra)
+plot1 = ggpairs(processed_arrhythmia_df_nolabels[, c(related_numerical_cols[1, 1], related_numerical_cols[1, 2])],
+                lower = list(continuous = regline_fn))
+plot2 = ggpairs(processed_arrhythmia_df_nolabels[, c(related_numerical_cols[2, 1], related_numerical_cols[2, 2])],
+                lower = list(continuous = regline_fn))
+plot3 = ggpairs(processed_arrhythmia_df_nolabels[, c(related_numerical_cols[3, 1], related_numerical_cols[3, 2])],
+                lower = list(continuous = regline_fn))
+plot4 = ggpairs(processed_arrhythmia_df_nolabels[, c(related_numerical_cols[4, 1], related_numerical_cols[4, 2])],
+                lower = list(continuous = regline_fn))
+grid.arrange(
+  grid.grabExpr(print(plot1)),
+  grid.grabExpr(print(plot2)),
+  grid.grabExpr(print(plot3)),
+  grid.grabExpr(print(plot4)),
+  ncol = 4
+)
+```
+
+The below is the Code for performing PCA on dataset with correlated features and without correlated features.
+```{r perform pcaa, fig.width=6, fig.height=2,eval=FALSE}
+arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels) #PCA of dataset with correlated columns
+tot.var <- sum(arrhythmia.pca$sdev ^ 2)
+var.explained <-  data.frame(pc = seq(1:278),
+             var.explained  = arrhythmia.pca$sdev ^ 2 / tot.var)
+cum_var.explained = c()
+for (i in seq(nrow(var.explained)))
+{
+  cum_var.explained =  c(cum_var.explained, sum(var.explained[1:i, 2]) * 100)  #Calculating cumulative variance
+}
+
+processed_arrhythmia_df_nolabels2 = processed_arrhythmia_df_nolabels[, -which(names(arrhythmia_df_nolabels) %in% colums_to_drop)] #Drop correlated columns
+arrhythmia.pca2 <- prcomp(processed_arrhythmia_df_nolabels2) #PCA of dataset without correlated columns
+tot.var <- sum(arrhythmia.pca2$sdev ^ 2)
+var.explained <-
+  data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels2)),
+             var.explained  = arrhythmia.pca2$sdev ^ 2 / tot.var)
+cum_var.explained2 = c()
+for (i in seq(nrow(var.explained)))
+{
+  cum_var.explained2 =  c(cum_var.explained2, sum(var.explained[1:i, 2]) * 100) #Calculating cumulative variance
+}
+
+```
+
+The below is the code for the plot showing cumulative variance explained by PCA 
+```{r pcapltsa, fig.width=12, fig.height=4,eval=FALSE}
+cum_var.explained_df <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels)),  cum_var.explained  =  cum_var.explained)
+
+pca1plot = ggplot(cum_var.explained_df[1:45, ], aes(pc, cum_var.explained)) + geom_bar(stat = "identity") + ggtitle("PCA on dataset with correlated features")  +
+  geom_hline(aes(yintercept = 95), colour = "red") + geom_text(aes(0, 95, label = "95% variability", vjust = 1), size = 3) +
+  labs(y = "% of cum. variance exp.") +
+  scale_x_continuous(breaks = seq(0, 45), "Principal Components")  +
+  theme_classic()
+
+cum_var.explained_df2 <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels2)),  cum_var.explained2  =  cum_var.explained2)
+
+pca2plot = ggplot(cum_var.explained_df2[1:45, ], aes(pc, cum_var.explained2)) + geom_bar(stat = "identity") + ggtitle("PCA on dataset without correlated features") +
+  geom_hline(aes(yintercept = 95), colour = "red") + geom_text(aes(0, 95, label = "95% variability", vjust = 1), size = 3)  +
+  labs(y = "% of cum. variance exp.") +
+  scale_x_continuous(breaks = seq(0, 45), "Principal Components")  +
+  theme_classic()
+
+require(gridExtra)
+grid.arrange(pca1plot, pca2plot, nrow = 2)
+```
+
+The below code is for feature subset for linear SVM.
+```{r linearsvmfeaturesubseta, eval=FALSE}
+selectFeature <-
+  function(train, test, cls.train, cls.test, features) {
+    ## identify a feature to be selected
+    current.best.fone <- -Inf
+    selected.i <- NULL
+    for (i in 1:ncol(train)) {
+      current.f <- colnames(train)[i]
+      if (!current.f %in% features) {
+        subfeatures_df_train = data.frame(class = cls.train)
+        subfeatures_df_test = data.frame(class = cls.test)
+        allcols = c(features, current.f)
+        for (eachcol in allcols)
+        {
+          subfeatures_df_train[, eachcol] = train[, eachcol]
+          subfeatures_df_test[, eachcol] = test[, eachcol]
+        }
+        oversampled_df = subfeatures_df_train
+        all_exis_classes  = sort(unique(arrhythmia_labels))
+        
+        for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+        {
+          testdf = subset(oversampled_df, class == eachminroclass |
+                            class == 1)
+          balanceddata <-
+            ovun.sample(
+              class ~ .,
+              data = get("testdf", sys.frame(1)),
+              method = "over",
+              p = 0.5
+            )$data
+          oversampled_df = rbind(
+            subset(balanceddata, class != 1),
+            subset(oversampled_df, class != eachminroclass)
+          )
+        }
+        linsvm.model1 <-
+          svm(
+            x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                                 FALSE],
+            y = oversampled_df[, "class"],
+            kernel = "linear",
+            type = "C-classification"
+          )
+        preds <-
+          predict(linsvm.model1, newdata = subfeatures_df_test[, -which(colnames(subfeatures_df_test) %in% c("class")), drop =
+                                                                 FALSE])
+        f1score <- calcF1Scores(as.numeric(levels(preds))[preds], cls.test)
+        test.fone = round(f1score[[1]], 3)
+        if (test.fone >  current.best.fone) {
+          current.best.fone <- test.fone
+          selected.i <- colnames(train)[i]
+        }
+      }
+    }
+    return(list(selected.i, current.best.fone))
+  }
+
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(arrhythmia_labels, p = .6)[[1]]
+allFeatures <- colnames(processed_arrhythmia_df_nolabels)
+
+train <- processed_arrhythmia_df_nolabels[inTrain, ]
+test  <- processed_arrhythmia_df_nolabels[-inTrain, ]
+cls.train <- arrhythmia_labels[inTrain]
+cls.test <- arrhythmia_labels[-inTrain]
+
+features <- NULL
+fone_scores = NULL
+# select the 1 to 30 best features using a wrapper classifier
+for (j in 1:30) {
+  featureoutput <-
+    selectFeature(train, test, cls.train, cls.test, features)
+  features <- c(features, featureoutput[[1]])
+  fone_scores = c(fone_scores, featureoutput[[2]])
+}
+```
+
+The below code is for feature subset for radial SVM.
+```{r radialsvmfeaturesubseta, eval=FALSE}
+selectFeature <-
+  function(train, test, cls.train, cls.test, features) {
+    ## identify a feature to be selected
+    current.best.fone <- -Inf
+    selected.i <- NULL
+    for (i in 1:ncol(train)) {
+      current.f <- colnames(train)[i]
+      if (!current.f %in% features) {
+        subfeatures_df_train = data.frame(class = cls.train)
+        subfeatures_df_test = data.frame(class = cls.test)
+        allcols = c(features, current.f)
+        for (eachcol in allcols)
+        {
+          subfeatures_df_train[, eachcol] = train[, eachcol]
+          subfeatures_df_test[, eachcol] = test[, eachcol]
+        }
+        
+        oversampled_df = subfeatures_df_train
+        all_exis_classes  = sort(unique(arrhythmia_labels))
+        for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+        {
+          testdf = subset(oversampled_df, class == eachminroclass |
+                            class == 1)
+          balanceddata <-
+            ovun.sample(
+              class ~ .,
+              data = get("testdf", sys.frame(1)),
+              method = "over",
+              p = 0.5
+            )$data
+          oversampled_df = rbind(
+            subset(balanceddata, class != 1),
+            subset(oversampled_df, class != eachminroclass)
+          )
+        }
+        
+        radial.model1 <-
+          svm(
+            x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                                 FALSE],
+            y = oversampled_df[, "class"],
+            kernel = "radial",
+            type = "C-classification"
+          )
+        preds <-
+          predict(radial.model1, newdata = subfeatures_df_test[, -which(colnames(subfeatures_df_test) %in% c("class")), drop =
+                                                                 FALSE])
+        
+        f1score <- calcF1Scores(as.numeric(levels(preds))[preds], cls.test)
+        test.fone = round(f1score[[1]], 3)
+        #test.fone
+        if (test.fone >  current.best.fone) {
+          current.best.fone <- test.fone
+          #fone_of_best = modelval.fone
+          selected.i <- colnames(train)[i]
+        }
+      }
+    }
+    return(list(selected.i, current.best.fone))
+  }
+
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(arrhythmia_labels, p = .6)[[1]]
+allFeatures <- colnames(processed_arrhythmia_df_nolabels)
+
+train <- processed_arrhythmia_df_nolabels[inTrain, ]
+test  <- processed_arrhythmia_df_nolabels[-inTrain, ]
+cls.train <- arrhythmia_labels[inTrain]
+cls.test <- arrhythmia_labels[-inTrain]
+
+features <- NULL
+fone_scores = NULL
+for (j in 1:20) {
+  featureoutput <-
+    selectFeature(train, test, cls.train, cls.test, features)
+  features <- c(features, featureoutput[[1]])
+  fone_scores = c(fone_scores, featureoutput[[2]])
+}
+
+```
+
+The below code is for feature subset for polynomial SVM.
+
+```{r polysvmfeaturesubseta, eval=FALSE}
+selectFeature <-
+  function(train, test, cls.train, cls.test, features) {
+    current.best.fone <- -Inf
+    selected.i <- NULL
+    for (i in 1:ncol(train)) {
+      current.f <- colnames(train)[i]
+      if (!current.f %in% features) {
+        subfeatures_df_train = data.frame(class = cls.train)
+        subfeatures_df_test = data.frame(class = cls.test)
+        allcols = c(features, current.f)
+        for (eachcol in allcols)
+        {
+          subfeatures_df_train[, eachcol] = train[, eachcol]
+          subfeatures_df_test[, eachcol] = test[, eachcol]
+        }
+        
+        polynomial.model1 <-
+          svm(
+            x = subfeatures_df_train[, -which(colnames(subfeatures_df_train) %in% c("class")), drop =
+                                       FALSE],
+            y = subfeatures_df_train[, "class"],
+            kernel = "polynomial",
+            type = "C-classification",
+            degree = 2
+          )
+        preds <-
+          predict(polynomial.model1, newdata = subfeatures_df_test[, -which(colnames(subfeatures_df_test) %in% c("class")), drop =
+                                                                     FALSE])
+        
+        f1score <- calcF1Scores(as.numeric(levels(preds))[preds], cls.test)
+        
+        test.fone = round(f1score[[1]], 3)
+        if (test.fone >  current.best.fone) {
+          current.best.fone <- test.fone
+          selected.i <- colnames(train)[i]
+        }
+      }
+    }
+    return(list(selected.i, current.best.fone))
+  }
+
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(arrhythmia_labels, p = .6)[[1]]
+allFeatures <- colnames(processed_arrhythmia_df_nolabels)
+train <- processed_arrhythmia_df_nolabels[inTrain, ]
+oversampled_df = train
+oversampled_df$class = arrhythmia_labels[inTrain]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+  balanceddata <-
+    ovun.sample(
+      class ~ .,
+      data = subset(oversampled_df, class == eachminroclass |
+                      class == 1),
+      method = "over",
+      p = 0.5
+    )$data
+  oversampled_df = rbind(subset(balanceddata, class != 1),
+                         subset(oversampled_df, class != eachminroclass))
+}
+
+train = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                         FALSE]
+test  <- processed_arrhythmia_df_nolabels[-inTrain, ]
+cls.train <- oversampled_df[, "class"]
+cls.test <- arrhythmia_labels[-inTrain]
+
+features = NULL
+fone_scores = NULL
+
+for (j in 1:30) {
+  featureoutput <-
+    selectFeature(train, test, cls.train, cls.test, features)
+  features <- c(features, featureoutput[[1]])
+  fone_scores = c(fone_scores, featureoutput[[2]])
+}
+```
+
+
+The below code is for feature subset for Multinomial Log.
+```{r logfeaturesubseta, eval=FALSE}
+selectFeature <-
+  function(train, test, cls.train, cls.test, features) {
+    ## identify a feature to be selected
+    current.best.fone <- -Inf
+    selected.i <- NULL
+    for (i in 1:ncol(train)) {
+      current.f <- colnames(train)[i]
+      if (!current.f %in% features) {
+        subfeatures_df_train = data.frame(class = cls.train)
+        subfeatures_df_test = data.frame(class = cls.test)
+        allcols = c(features, current.f)
+        for (eachcol in allcols)
+        {
+          subfeatures_df_train[, eachcol] = train[, eachcol]
+          subfeatures_df_test[, eachcol] = test[, eachcol]
+        }
+        
+        multinomlogmodel <-
+          multinom(class ~ ., data = subfeatures_df_train, trace = FALSE)
+        preds = predict(multinomlogmodel, newdata = subfeatures_df_test[, -which(colnames(subfeatures_df_test) %in% c("class")), drop =
+                                                                          FALSE])
+        f1score <- calcF1Scores(as.numeric(levels(preds))[preds], cls.test)
+        test.fone = round(f1score[[1]], 3)
+        if (test.fone >  current.best.fone) {
+          current.best.fone <- test.fone
+          selected.i <- colnames(train)[i]
+        }
+      }
+    }
+    return(list(selected.i, current.best.fone))
+  }
+
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(arrhythmia_labels, p = .6)[[1]]
+allFeatures <- colnames(processed_arrhythmia_df_nolabels)
+train <- processed_arrhythmia_df_nolabels[inTrain, ]
+oversampled_df = train
+oversampled_df$class = arrhythmia_labels[inTrain]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+  balanceddata <-
+    ovun.sample(
+      class ~ .,
+      data = subset(oversampled_df, class == eachminroclass |
+                      class == 1),
+      method = "over",
+      p = 0.5
+    )$data
+  oversampled_df = rbind(subset(balanceddata, class != 1),
+                         subset(oversampled_df, class != eachminroclass))
+}
+
+train = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                         FALSE]
+test  <- processed_arrhythmia_df_nolabels[-inTrain, ]
+cls.train <- oversampled_df[, "class"]
+cls.test <- arrhythmia_labels[-inTrain]
+
+features = NULL
+fone_scores = NULL
+for (j in 1:20) {
+  featureoutput <-
+    selectFeature(train, test, cls.train, cls.test, features)
+  features <- c(features, featureoutput[[1]])
+  fone_scores = c(fone_scores, featureoutput[[2]])
+}
+```
+
+The below code is for feature subset for LDA.
+```{r ldafeaturesubseta, eval=FALSE}
+selectFeature <-
+  function(train, test, cls.train, cls.test, features) {
+    ## identify a feature to be selected
+    current.best.fone <- -Inf
+    selected.i <- NULL
+    for (i in 1:ncol(train)) {
+      current.f <- colnames(train)[i]
+      if (!current.f %in% features) {
+        subfeatures_df_train = data.frame(class = cls.train)
+        subfeatures_df_test = data.frame(class = cls.test)
+        allcols = c(features, current.f)
+        for (eachcol in allcols)
+        {
+          subfeatures_df_train[, eachcol] = train[, eachcol]
+          subfeatures_df_test[, eachcol] = test[, eachcol]
+        }
+        flag <- TRUE
+        tryCatch({
+          lda.model <- MASS::lda(class ~ ., data = subfeatures_df_train)
+        }, error = function(e) {
+          flag <<- FALSE
+        })
+        
+        if (!flag) {
+          next
+        }
+        ldapreds = predict(lda.model, newdata = subfeatures_df_test[, -which(colnames(subfeatures_df_test) %in% c("class")), drop =
+                                                                      FALSE])$class
+        f1score <-
+          calcF1Scores(as.numeric(levels(ldapreds))[ldapreds], cls.test)
+        test.fone = round(f1score[[1]], 3)
+        if (test.fone >  current.best.fone) {
+          current.best.fone <- test.fone
+          selected.i <- colnames(train)[i]
+        }
+      }
+    }
+    return(list(selected.i, current.best.fone))
+  }
+
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(arrhythmia_labels, p = .6)[[1]]
+allFeatures <- colnames(processed_arrhythmia_df_nolabels)
+train <- processed_arrhythmia_df_nolabels[inTrain, ]
+oversampled_df = train
+oversampled_df$class = arrhythmia_labels[inTrain]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+  balanceddata <-
+    ovun.sample(
+      class ~ .,
+      data = subset(oversampled_df, class == eachminroclass |
+                      class == 1),
+      method = "over",
+      p = 0.5
+    )$data
+  oversampled_df = rbind(subset(balanceddata, class != 1),
+                         subset(oversampled_df, class != eachminroclass))
+}
+
+train = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =
+                         FALSE]
+test  <- processed_arrhythmia_df_nolabels[-inTrain, ]
+cls.train <- oversampled_df[, "class"]
+cls.test <- arrhythmia_labels[-inTrain]
+
+features = NULL
+fone_scores = NULL
+for (j in 1:30) {
+  featureoutput <-
+    selectFeature(train, test, cls.train, cls.test, features)
+  features <- c(features, featureoutput[[1]])
+  fone_scores = c(fone_scores, featureoutput[[2]])
+}
+```
+
+The below code is to visualize feature subset performance in various subplots .
+```{r subsetplota,eval=FALSE,fig.width=16,fig.height=6}
+
+p1= ggplot(data=knn_featuresubset_metrics ,aes(x=index,y=macrof1))+geom_line(data=knn_featuresubset_metrics ,aes(x=index,y=macrof1) ,size = 1)+ 	labs(title="kNN", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =knn_featuresubset_metrics$index, labels=knn_featuresubset_metrics$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+p2= ggplot(data=linsvm_featuresubset_metrics ,aes(x=index,y=macrof1))+geom_line(data=linsvm_featuresubset_metrics ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="Linear SVM", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =linsvm_featuresubset_metrics$index, labels=linsvm_featuresubset_metrics$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+p3= ggplot(data=radsvm_featuresubset_metrics,aes(x=index,y=macrof1))+geom_line(data=radsvm_featuresubset_metrics ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="Radial SVM", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =radsvm_featuresubset_metrics$index, labels=radsvm_featuresubset_metrics$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+p4= ggplot(data=multilog_featuresubset_metrics ,aes(x=index,y=macrof1))+geom_line(data=multilog_featuresubset_metrics ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="Multinomial Log", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =multilog_featuresubset_metrics$index, labels=multilog_featuresubset_metrics$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+p5= ggplot(data=lda_featuresubset_metrics ,aes(x=index,y=macrof1))+geom_line(data=lda_featuresubset_metrics ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="LDA", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =lda_featuresubset_metrics$index, labels=lda_featuresubset_metrics$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p6= ggplot(data=polysvm_featuresubset_metrics ,aes(x=index,y=macrof1))+geom_line(data=polysvm_featuresubset_metrics ,aes(x=index,y=macrof1) ,size = 1)+ labs(title="Polynomial SVM", x ="Features", y = "Macro f1-score")+ scale_x_continuous(breaks =polysvm_featuresubset_metrics$index, labels=polysvm_featuresubset_metrics$Features) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+require(gridExtra)
+
+grid.arrange(p1,p2,p3,p4,p5,p6, ncol=3,nrow=2)
+```
+
+
+The below is the code for approach 2 i.e. using dataset with correlated features and then applying PCA to evaluate classifers.
+```{r pca2a,eval=FALSE}
+set.seed(1)
+fold <- createFolds(arrhythmia_labels, k = 10) # apply 10-fold cross-validation
+tmp2f1knn = tmp2f1linsvm = tmp2f1ploy = tmp2f1radc = tmp2f1lda = tmp2f1log = c()
+tmp2recaknn = tmp2recalinsvm = tmp2recaploy = tmp2recaradc = tmp2recalda = tmp2recalog = c()
+
+for (i in 1:length(fold)) {
+  arrhythmia.pca <-
+    prcomp(processed_arrhythmia_df_nolabels[-fold[[i]], -which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]) #apply PCA on training data without correlated features
+  tot.var <- sum(arrhythmia.pca$sdev ^ 2)
+  var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]], -which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])),var.explained  = arrhythmia.pca$sdev ^ 2 / tot.var)
+  
+  cum_var.explained = c()
+  for (u in seq(nrow(var.explained)))
+  {
+    cum_var.explained =  c(cum_var.explained, sum(var.explained[1:u, 2]) * 100)
+  }
+  #identify minimum PCs for 95% variability
+  
+  pctouse = min(which(cum_var.explained > 95))
+  
+  #Oversample minor classes in training data
+  oversampled_df = data.frame(arrhythmia.pca$x[, 1:pctouse])
+  oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+  all_exis_classes  = sort(unique(arrhythmia_labels))
+   
+  for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+  {
+	balanceddata <-
+      ovun.sample(
+        class ~ .,
+        data = subset(oversampled_df, class == eachminroclass |
+                        class == 1),
+        method = "over",
+        p = 0.5
+      )$data
+    
+    oversampled_df = rbind(subset(balanceddata, class != 1),
+                           subset(oversampled_df, class != eachminroclass))
+  }
+  oversampled_df <- oversampled_df[sample(nrow(oversampled_df)), ]  #Shuffling rows
+  
+  #apply PCA on validation data
+  arrhythmia.pcatest = predict(arrhythmia.pca, processed_arrhythmia_df_nolabels[fold[[i]], -which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+  
+  #Train classifiers
+  preds <- knn(oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =FALSE],data.frame(arrhythmia.pcatest[, 1:pctouse]),oversampled_df$class)#, k=1)  
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1knn = c(tmp2f1knn, f1score[[1]])
+  tmp2recaknn = c(tmp2recaknn, f1score[[2]])
+ 
+  linsvm.model1 <- svm(x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =FALSE],y = oversampled_df$class,kernel = "linear",type = "C-classification")
+  preds <- predict(linsvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1linsvm = c(tmp2f1linsvm, f1score[[1]])
+  tmp2recalinsvm = c(tmp2recalinsvm, f1score[[2]])
+  
+  
+  polysvm.model1 <- svm(x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =FALSE],y = oversampled_df$class,kernel = "polynomial",type = "C-classification")
+  preds <- predict(polysvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1ploy = c(tmp2f1ploy, f1score[[1]])
+  tmp2recaploy = c(tmp2recaploy, f1score[[2]])
+  
+  radsvm.model1 <- svm(x = oversampled_df[, -which(colnames(oversampled_df) %in% c("class")), drop =FALSE],y = oversampled_df$class,kernel = "radial",type = "C-classification")
+  preds <- predict(radsvm.model1, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1radc = c(tmp2f1radc, f1score[[1]])
+  tmp2recaradc = c(tmp2recaradc, f1score[[2]])
+  
+  lda.model <- MASS::lda(class ~ ., data = oversampled_df)
+  preds = predict(lda.model, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))$class
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1lda = c(tmp2f1lda, f1score[[1]])
+  tmp2recalda = c(tmp2recalda, f1score[[2]])
+  
+  multinomlogmodel <- multinom(class ~ ., data = oversampled_df, trace = FALSE)
+  preds = predict(multinomlogmodel, newdata = data.frame(arrhythmia.pcatest[, 1:pctouse]))
+  f1score <- calcF1Scores(as.numeric(levels(preds))[preds], arrhythmia_labels[fold[[i]]])
+  tmp2f1log = c(tmp2f1log, f1score[[1]])
+  tmp2recalog = c(tmp2recalog, f1score[[2]])
+  
+}
+
+fone.val = c(mean(tmp2f1log ),mean(tmp2f1lda),mean(tmp2f1knn),mean(tmp2f1linsvm),mean(tmp2f1ploy),mean(tmp2f1radc))
+recall.val = c(mean(tmp2recalog ),mean(tmp2recalda),mean(tmp2recaknn),mean(tmp2recalinsvm),mean(tmp2recaploy),mean(tmp2recaradc))
+
+plot_df95pca2 = data.frame(index= seq(1:6),fone=fone.val,recall=recall.val,algo= c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"))
+	ggplot(data=plot_df95pca2 ,aes(x=index,y=fone))+geom_line(data=plot_df95pca2 ,aes(x=index,y=fone,color="f1-score") ,size = 1)+geom_line(data=plot_df95pca2 ,aes(x=index,y=recall,color="recall") ,size = 1)+labs(title="F1-score various algo - 95% var - without correlated columns")+ scale_x_continuous(breaks =plot_df95pca2$index, labels=plot_df95pca2$algo) +scale_color_manual(values = c('f1-score' = 'blue',  'recall' = 'green'))	
+	 
+boxplot_df_pca295= data.frame("Values"=c(tmp2recalog,tmp2recalda,tmp2recaknn,tmp2recalinsvm,tmp2recaploy,tmp2recaradc,tmp2f1log,tmp2f1lda,tmp2f1knn,tmp2f1linsvm,tmp2f1ploy,tmp2f1radc),"Classifiers"=rep(rep(c("Multinomial Log","LDA","kNN","Linear SVM","Polynomial SVM","Radial SVM"),each =10),times=2),"Metric"=rep(c("Macro Sensitivity","Macro f1-score"),each=60))
+ 
+ ggplot(data=boxplot_df_pca295, aes(x=Classifiers,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer Evaluation  - 95% var - without correlated columns") + facet_wrap(~Metric)
+```
+
+The below code is for comparing classifers across different approaches via boxplot.
+```{r vieweval4a, fig.width=16, fig.height=5,eval=FALSE}
+newdf = rbind(boxplot_df_pca95,boxplot_df_pca295,boxplot_df_subset)
+newdf$dataset = rep(c("PCA including correlated features","PCA excluding correlated features","Feature Subset"),each=120)
+
+ ggplot(data=newdf, aes(x=dataset,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer comparison across different approaches") + facet_wrap(~Metric)
+```
+
+The below code is for comparing classifers across different approaches via line plot.
+```{r variousmodelscomp4a, fig.width=12, fig.height=4,eval=FALSE}
+
+ggplot(data=plot_df95pca2 ,aes(x=index,y=fone))+geom_line(data=plot_df95pca2 ,aes(x=index,y=fone,color="PCA excluding correlated features") ,size = 1)+geom_line(data=plot_df95pca ,aes(x=index,y=fone,color="PCA including correlated features") ,size = 1)+geom_line(data=plot_dfsubset ,aes(x=index,y=fone,color="Feature subset") ,size = 1)+ 	labs(title="macro f1-score across different approaches", x ="Classifiers", y = "Macro f1-score")+ scale_x_continuous(breaks =plot_df95pca$index, labels=plot_df95pca$algo) +scale_color_manual(name = "Legend",values = c('Feature subset' = 'green3','PCA excluding correlated features' = 'blue','PCA including correlated features' = 'orange'))
+```
+
+The below code is for visualizing lineavr SVM performance for different values of cost - hyperparameter optimization
+
+```{r linsvm-hyperparameterplota, fig.width=12, fig.height=4,eval=FALSE,warning=FALSE}
+lin.plot.dat = subset(lin.plot.dat,k <5.1)
+ggplot(lin.plot.dat) + geom_line(aes(x = k, y = values, fill= metric))+ scale_x_continuous(breaks = lin.plot.dat$k)+ 	labs(title="macro f1-score and macro sensitivty for different cost values - Linear SVM", x ="Cost", y = "Value") + facet_wrap(~metric)
+```
+
+
+The below code is for hyper paramter optimization of radial SVM.
+
+```{r radsvm-hyperparametera, fig.width=12, fig.height=4,eval=FALSE}
+
+fold <- createFolds(arrhythmia_labels, k=10)
+
+knn.sen = knn.fone = c()
+knn.fnr.k = c()
+
+gamma_Values = seq(0.001,0.01,0.001)#c(0.001,0.01,0.1, 1, 10, 100)
+cost_values =  seq(100,1000,100) #seq(10)
+
+gamma_cost_values = cbind(rep(gamma_Values, times = length(cost_values)),rep(cost_values, each = length(gamma_Values)))
+
+for (idx in seq(nrow(gamma_cost_values)))
+{
+ knn.TP <- knn.TN <- knn.FP <- knn.FN <- c()
+lda.TP <- lda.TN <- lda.FP <- lda.FN <- c()
+f1scores = c()
+sens_Scores = c()
+for(i in 1:length(fold)){
+
+arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+pctouse = min(which(cum_var.explained > 95))
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+arrhythmia.pcatest = predict(arrhythmia.pca,processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])  
+ 
+ svm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification", cost = gamma_cost_values[idx,2],gamma = gamma_cost_values[idx,1])
+    preds <- predict(svm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]) )  
+    f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+  f1scores = c(f1scores,f1score[[1]])
+    sens_Scores = c(sens_Scores,f1score[[2]])  
+}
+
+knn.fone = c(knn.fone,mean(f1scores))
+knn.sen = c(knn.sen,mean(sens_Scores))
+
+}
+radvm.plot.dat <- data.frame(values = c(unlist(knn.fone),unlist(knn.sen)),metric = rep(c("Macro f1-score","Macro sensitivity"),each=length(seq(nrow(gamma_cost_values)))),gamma = rep(gamma_cost_values[,1], times=2),   cost = rep(gamma_cost_values[,2], times=2))
+```
+
+The below code is for visualizing radial SVM performance for different values of cost and gamma - hyperparameter optimization
+
+```{r radsvm-hyperparameterplota, fig.width=12, fig.height=4,eval=FALSE}
+t1 = ggplot(data = subset(radvm.plot.dat , metric == "Macro f1-score" &
+                            cost == 100) ,
+            aes(x = gamma, y = values)) + geom_line(
+              data = subset(radvm.plot.dat , metric == "Macro f1-score" &
+                              cost == 100) ,
+              aes(x = gamma, y = values, color = "Cost = 100") ,
+              size = 1
+            ) + geom_line(
+              data = subset(radvm.plot.dat , metric == "Macro f1-score" &
+                              cost == 800) ,
+              aes(x = gamma, y = values, color = "Cost = 800") ,
+              size = 1
+            ) + geom_line(
+              data = subset(radvm.plot.dat , metric == "Macro f1-score" &
+                              cost == 900) ,
+              aes(x = gamma, y = values, color = "Cost = 900") ,
+              size = 1
+            ) + labs(title = "Macro f1-score for various cost and gamma - Radial SVM", x =
+                       "Gamma values", y = "Macro f1-score") + scale_x_continuous(breaks = radvm.plot.dat$gamma) +
+  scale_color_discrete(name = "Legend")
+t2 = ggplot(
+  data = subset(radvm.plot.dat , metric == "Macro sensitivity" &
+                  cost == 100) ,
+  aes(x = gamma, y = values)
+) + geom_line(
+  data = subset(radvm.plot.dat , metric == "Macro sensitivity" &
+                  cost == 100) ,
+  aes(x = gamma, y = values, color = "Cost = 100") ,
+  size = 1
+) + geom_line(
+  data = subset(radvm.plot.dat , metric == "Macro sensitivity" &
+                  cost == 800) ,
+  aes(x = gamma, y = values, color = "Cost = 800") ,
+  size = 1
+) + geom_line(
+  data = subset(radvm.plot.dat , metric == "Macro sensitivity" &
+                  cost == 900) ,
+  aes(x = gamma, y = values, color = "Cost = 900") ,
+  size = 1
+) + labs(title = "Macro sensitivity for various cost and gamma - Radial SVM", x =
+           "Gamma values", y = "Macro sensitivity") + scale_x_continuous(breaks = radvm.plot.dat$gamma) +
+  scale_color_discrete(name = "Legend")
+require(gridExtra)
+grid.arrange(t1, t2, ncol = 2)
+```
+
+The below code is for training and comparing, linear SVM, radial SVM with default and optimized parameters and also for visualizing the results via box plot.
+
+```{r pca2-comparisona,eval=FALSE, fig.width=12, fig.height=4}
+fold <- createFolds(arrhythmia_labels, k=10)
+# apply 10-fold cross-validation
+
+tmp2f1knn =tmp2f1linsvm =tmp2f1linsvmop= tmp2f1ploy = tmp2f1radc =tmp2f1radcop= tmp2f1lda = tmp2f1log = c()
+tmp2recaknn =tmp2recalinsvm =tmp2recalinsvmop= tmp2recaploy = tmp2recaradc =tmp2recaradcop= tmp2recalda = tmp2recalog = c()
+
+for(i in 1:length(fold)){
+
+arrhythmia.pca <- prcomp(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+#Identifying the number of principal components to explain 95% var
+pctouse = min(which(cum_var.explained > 95))
+
+#Over sampling minor classes
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = arrhythmia_labels[-fold[[i]]]
+all_exis_classes  = sort(unique(arrhythmia_labels))
+
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+
+#apply PCA on test
+arrhythmia.pcatest = predict(arrhythmia.pca,processed_arrhythmia_df_nolabels[fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]) 
+
+linsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "linear", type = "C-classification")#, cost = 2.5)
+preds <- predict(linsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+tmp2f1linsvm = c(tmp2f1linsvm,f1score[[1]])
+tmp2recalinsvm = c(tmp2recalinsvm,f1score[[2]])
+      
+    
+linsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "linear", type = "C-classification", cost = 3.2)
+preds <- predict(linsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+tmp2f1linsvmop = c(tmp2f1linsvmop,f1score[[1]])
+tmp2recalinsvmop = c(tmp2recalinsvmop,f1score[[2]])
+    
+radsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification")#, cost = 500,gamma = 0.009)
+preds <- predict(radsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+tmp2f1radc = c(tmp2f1radc,f1score[[1]])
+tmp2recaradc = c(tmp2recaradc,f1score[[2]])
+    
+radsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification",cost = 800,gamma = 0.009)
+preds <- predict(radsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+f1score <- calcF1Scores(as.numeric(levels(preds))[preds],arrhythmia_labels[fold[[i]]])
+tmp2f1radcop = c(tmp2f1radcop,f1score[[1]])
+tmp2recaradcop = c(tmp2recaradcop,f1score[[2]])   
+}
+
+fone.val = c(mean(tmp2f1linsvm),mean(tmp2f1linsvmop),mean(tmp2f1radc),mean(tmp2f1radcop))
+recall.val = c(mean(tmp2recalinsvm),mean(tmp2recalinsvmop),mean(tmp2recaradc),mean(tmp2recaradcop))
+
+plot_df95pca2opc = data.frame(index= seq(1:4),fone=fone.val,recall=recall.val,algo= c("Linear SVM","Linear SVM - Optimized","Radial SVM","Radial SVM - Optimized"))
+boxplot_df95pca2opc= data.frame("Values"=c(tmp2recalinsvm,tmp2recalinsvmop,tmp2recaradc,tmp2recaradcop,tmp2f1linsvm,tmp2f1linsvmop,tmp2f1radc,tmp2f1radcop),"Classifiers"=rep(rep(c("Linear SVM","Linear SVM - Optimized","Radial SVM","Radial SVM - Optimized"),each =10),times=2),"Metric"=rep(c("Macro Sensitivity","Macro f1-score"),each=40))
+ 
+ggplot(data=boxplot_df95pca2opc, aes(x=Classifiers,y=Values, fill=Classifiers)) +   geom_boxplot(outlier.colour="red", outlier.shape=16,outlier.size=2, notch=FALSE) + ggtitle("Classifer comparions across various folds") + facet_wrap(~Metric)
+```
+
+The below code is for line graph to compare classifiers with default and optimized parameters
+```{r pca2-comparison2a,eval=FALSE, fig.width=10, fig.height=4}
+ggplot(data=plot_df95pca2opc ,aes(x=index,y=fone))+geom_line(data=plot_df95pca2opc ,aes(x=index,y=fone,color="Macro f1-score") ,size = 1)+geom_line(data=plot_df95pca2opc ,aes(x=index,y=recall,color="Macro recall") ,size = 1)+labs(title="Classifiers comparsion - averaged macro f1 and averaged macro recall", x ="Classifiers", y = "Values")+ scale_x_continuous(breaks =plot_df95pca2opc$index, labels=plot_df95pca2opc$algo) +scale_color_manual(values = c('Macro f1-score' = 'blue',  'Macro recall' = 'green3'))
+```
+
+The below code is for calculating ROC of the curve
+```{r rocattempt,, fig.width=12, fig.height=4,warning=FALSE,eval=FALSE}
+library(caret)
+set.seed(1)
+
+#Split data into traning and validatio data set
+inTrain <- createDataPartition(arrhythmia_labels, p = .6)[[1]]
+train <- processed_arrhythmia_df_nolabels[ inTrain,-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]
+test  <- processed_arrhythmia_df_nolabels[-inTrain,-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))]
+cls.train <- arrhythmia_labels[inTrain]
+cls.test <- arrhythmia_labels[-inTrain]
+
+#apply PCA on training dataset
+arrhythmia.pca <- prcomp(train)
+tot.var <- sum(arrhythmia.pca$sdev^2)
+var.explained <- data.frame(pc = seq(1:ncol(processed_arrhythmia_df_nolabels[-fold[[i]],-which(names(processed_arrhythmia_df_nolabels) %in% c(colums_to_drop))])), var.explained  = arrhythmia.pca$sdev^2/tot.var ) 
+
+cum_var.explained =c()
+for (u in seq(nrow(var.explained)))
+{cum_var.explained =  c(cum_var.explained,sum(var.explained[1:u,2])*100)}
+
+#Identif number of PCs to use to explain 95% variability 
+pctouse = min(which(cum_var.explained > 95))
+
+oversampled_df = data.frame(arrhythmia.pca$x[,1:pctouse])
+oversampled_df$class = cls.train
+all_exis_classes  = sort(unique(arrhythmia_labels))
+for (eachminroclass in all_exis_classes[!all_exis_classes %in% 1])
+{
+balanceddata<-ovun.sample(class ~ ., data =subset(oversampled_df,class == eachminroclass | class == 1), method = "over",p=0.5)$data
+oversampled_df = rbind(subset(balanceddata,class != 1),subset(oversampled_df,class != eachminroclass))
+}
+oversampled_df <- oversampled_df[sample(nrow(oversampled_df)),]  #Shuffling rows
+arrhythmia.pcatest = predict(arrhythmia.pca, test)
+
+
+radsvm.model1 <- svm(x = oversampled_df[,-which(colnames(oversampled_df) %in% c("class")),drop=FALSE], y = oversampled_df$class, kernel = "radial", type = "C-classification")
+#Calculate predictions on validation data
+preds <- predict(radsvm.model1, newdata=data.frame(arrhythmia.pcatest[,1:pctouse]))
+
+#Multiclass ROC under the curve calculation
+library(pROC)
+y_pred<-as.ordered(preds)
+auc <- multiclass.roc(cls.test, y_pred)
+print(auc(auc))
+```
